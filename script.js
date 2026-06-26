@@ -9,8 +9,9 @@
    Draw order, every redraw: background -> dark overlay -> quote -> author.
    ============================================================ */
 
-/* About 15 quotes, each a simple object with the text and who said it.
-   Kept right here in the file so the app works fully offline. */
+/* 50 quotes, each a simple object with the text and who said it — weighted
+   toward classic/ancient thinkers. Kept right here in the file so the app
+   works fully offline. */
 const QUOTES = [
   { text: 'The only way to do great work is to love what you do.', author: 'Steve Jobs' },
   { text: 'Believe you can and you are halfway there.', author: 'Theodore Roosevelt' },
@@ -27,6 +28,41 @@ const QUOTES = [
   { text: 'Act as if what you do makes a difference. It does.', author: 'William James' },
   { text: 'Start where you are. Use what you have. Do what you can.', author: 'Arthur Ashe' },
   { text: 'In the middle of difficulty lies opportunity.', author: 'Albert Einstein' },
+  { text: 'The only true wisdom is in knowing you know nothing.', author: 'Socrates' },
+  { text: 'The unexamined life is not worth living.', author: 'Socrates' },
+  { text: 'To find yourself, think for yourself.', author: 'Socrates' },
+  { text: 'The beginning is the most important part of the work.', author: 'Plato' },
+  { text: 'Wise men speak because they have something to say; fools because they have to say something.', author: 'Plato' },
+  { text: 'Knowing yourself is the beginning of all wisdom.', author: 'Aristotle' },
+  { text: 'Patience is bitter, but its fruit is sweet.', author: 'Aristotle' },
+  { text: 'It does not matter how slowly you go as long as you do not stop.', author: 'Confucius' },
+  { text: 'Our greatest glory is not in never falling, but in rising every time we fall.', author: 'Confucius' },
+  { text: 'Wherever you go, go with all your heart.', author: 'Confucius' },
+  { text: 'Nature does not hurry, yet everything is accomplished.', author: 'Lao Tzu' },
+  { text: 'When I let go of what I am, I become what I might be.', author: 'Lao Tzu' },
+  { text: 'Knowing others is intelligence; knowing yourself is true wisdom.', author: 'Lao Tzu' },
+  { text: 'Luck is what happens when preparation meets opportunity.', author: 'Seneca' },
+  { text: 'We suffer more often in imagination than in reality.', author: 'Seneca' },
+  { text: 'As long as you live, keep learning how to live.', author: 'Seneca' },
+  { text: 'The happiness of your life depends upon the quality of your thoughts.', author: 'Marcus Aurelius' },
+  { text: 'Waste no more time arguing about what a good man should be. Be one.', author: 'Marcus Aurelius' },
+  { text: 'You have power over your mind, not outside events. Realize this, and you will find strength.', author: 'Marcus Aurelius' },
+  { text: 'It is not what happens to you, but how you react to it that matters.', author: 'Epictetus' },
+  { text: 'No man is free who is not master of himself.', author: 'Epictetus' },
+  { text: 'No man ever steps in the same river twice.', author: 'Heraclitus' },
+  { text: 'Change is the only constant.', author: 'Heraclitus' },
+  { text: 'In the midst of chaos, there is also opportunity.', author: 'Sun Tzu' },
+  { text: 'The life given us by nature is short, but the memory of a life well spent is eternal.', author: 'Cicero' },
+  { text: 'A room without books is like a body without a soul.', author: 'Cicero' },
+  { text: 'Not what we have, but what we enjoy, constitutes our abundance.', author: 'Epicurus' },
+  { text: 'Do not say a little in many words, but a great deal in a few.', author: 'Pythagoras' },
+  { text: 'The wound is the place where the light enters you.', author: 'Rumi' },
+  { text: 'What you seek is seeking you.', author: 'Rumi' },
+  { text: 'Yesterday I was clever, so I wanted to change the world. Today I am wise, so I am changing myself.', author: 'Rumi' },
+  { text: 'Peace comes from within. Do not seek it without.', author: 'Buddha' },
+  { text: 'Fortune favors the bold.', author: 'Virgil' },
+  { text: 'Be patient and tough; someday this pain will be useful to you.', author: 'Ovid' },
+  { text: 'Wisdom outweighs any wealth.', author: 'Sophocles' },
 ];
 
 /* Three bundled gradients used as the default background before any photo is
