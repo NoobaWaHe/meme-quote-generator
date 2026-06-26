@@ -670,6 +670,75 @@ body {
   outline-offset: 2px;
 }
 
+/* The caption editor: a stack of text boxes (one per template slot) you type into. */
+.captions {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.caption-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Each row: a wide text input plus a small remove button. */
+.caption-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.caption-input {
+  flex: 1 1 auto;
+  min-width: 0; /* lets the input shrink inside the flex row instead of overflowing */
+  min-height: 44px;
+  padding: 0 0.75rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.caption-input::placeholder {
+  color: var(--muted);
+}
+
+.caption-input:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+  border-color: transparent;
+}
+
+/* Square remove button — keeps a 44px tap target. */
+.caption-remove {
+  flex: 0 0 auto;
+  width: 44px;
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.caption-remove:hover {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.caption-remove:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+}
+
 /* ---------- Respect "reduce motion" ---------- */
 
 /* Some people get motion sick or simply prefer no movement. Turn off the hover
@@ -681,6 +750,7 @@ body {
   .meme-thumb,
   .meme-image,
   .maker-thumb,
+  .caption-remove,
   #maker-canvas {
     transition: none;
   }

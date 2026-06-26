@@ -133,6 +133,15 @@
         ></canvas>
       </div>
 
+      <!-- Your captions: one text box per template slot to start (add or remove as
+           you like). Typing updates the canvas live. The boxes are injected by JS
+           because how many there are depends on the chosen template. -->
+      <div class="captions" role="group" aria-label="Your captions">
+        <span class="eyebrow">Your captions</span>
+        <div id="caption-list" class="caption-list"></div>
+        <button id="caption-add" class="button button--ghost" type="button">+ Add caption</button>
+      </div>
+
       <!-- Choose a template by how many captions it takes (2, 3, 4 …), or get a
            surprise one. The count options are filled in by JS from the real data. -->
       <div class="maker-pick" role="group" aria-label="Choose a template">

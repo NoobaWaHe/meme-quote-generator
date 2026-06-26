@@ -100,6 +100,9 @@ let currentTemplateImage = null;  // its loaded <img> (crossOrigin=anonymous)
 let makerLogicalW = 0;            // logical maker-canvas size (matches template aspect)
 let makerLogicalH = 0;
 let makerButton = null;           // cached "New template" button
+let captions = [];                // the text boxes drawn on the current template
+let captionSeq = 0;               // ever-increasing id source for captions
+let selectedCaptionId = null;     // which caption the next step's controls will edit
 
 /* Grab the canvas and its 2D context once. */
 const canvas = document.getElementById('quote-canvas');
@@ -803,15 +806,168 @@ function setupMakerCanvasFor(image) {
   makerCtx.setTransform(scale, 0, 0, scale, 0, 0);
 }
 
-/* Repaint the whole maker scene. Right now that's a clear + the plain template;
-   later steps draw the caption layers on top here too. We clear first so a
-   template with transparency (or, later, a moved caption) never ghosts. */
+/* A friendly placeholder hint for each caption slot, based on its position. The
+   classic top/bottom wording is recognizable; extra boxes are just numbered. */
+function captionLabel(index, total) {
+  if (total === 1) {
+    return 'Caption';
+  }
+  if (index === 0) {
+    return 'Top text';
+  }
+  if (index === total - 1) {
+    return 'Bottom text';
+  }
+  return 'Text ' + (index + 1);
+}
+
+/* Create one caption. Positions are stored as fractions (0..1) of the canvas, so
+   they stay correct when the template — and therefore the canvas size — changes,
+   and so a later step can drag them. The classic meme look (Impact, white fill,
+   black outline, uppercase) lives on the caption now; Step 3 adds controls for it. */
+function makeCaption(label, nx, ny) {
+  captionSeq += 1;
+  return {
+    id: captionSeq,
+    label: label,
+    text: '',
+    nx: nx,                 // normalized center X
+    ny: ny,                 // normalized center Y
+    nWidth: 0.92,           // wrap width as a fraction of canvas width
+    fontScale: 0.12,        // font size as a fraction of canvas height
+    fontFamily: 'Impact, "Haettenschweiler", "Arial Narrow Bold", sans-serif',
+    fillColor: '#ffffff',
+    strokeColor: '#000000',
+    uppercase: true,
+    box: null,              // last drawn bounds (logical px) — used by dragging later
+  };
+}
+
+/* Seed the editor with the right number of boxes for a template: a 1-box template
+   gets one near the top, a 2-box gets the classic top + bottom, more are spread
+   evenly down the image. */
+function seedCaptions(count) {
+  const total = Math.max(1, count || 1);
+  captions = [];
+  for (let i = 0; i < total; i += 1) {
+    // Spread vertical centers from 14% (top) to 86% (bottom) of the canvas.
+    const ny = total === 1 ? 0.16 : 0.14 + 0.72 * (i / (total - 1));
+    captions.push(makeCaption(captionLabel(i, total), 0.5, ny));
+  }
+  selectedCaptionId = captions.length ? captions[0].id : null;
+}
+
+/* Draw one caption in the classic meme style: a thick outline (drawn first) with a
+   solid fill on top, word-wrapped and centered on its point. Also records the
+   block's bounds so a later step can hit-test it for dragging. Empty captions draw
+   nothing. */
+function drawCaption(context, caption) {
+  const text = caption.uppercase ? caption.text.toUpperCase() : caption.text;
+  if (!text.trim()) {
+    caption.box = null;
+    return;
+  }
+  const fontSize = Math.max(12, Math.round(caption.fontScale * makerLogicalH));
+  context.font = '700 ' + fontSize + 'px ' + caption.fontFamily;
+  context.textAlign = 'center';
+  context.textBaseline = 'top';
+
+  const maxWidth = caption.nWidth * makerLogicalW;
+  const lines = wrapText(context, text, maxWidth);
+  const lineHeight = fontSize * 1.08;
+  const blockHeight = lines.length * lineHeight;
+  const centerX = caption.nx * makerLogicalW;
+  const topY = caption.ny * makerLogicalH - blockHeight / 2;
+
+  // Outline settings — rounded joins keep the stroke clean on letter corners.
+  context.lineJoin = 'round';
+  context.miterLimit = 2;
+  context.lineWidth = Math.max(2, fontSize * 0.14);
+  context.strokeStyle = caption.strokeColor;
+  context.fillStyle = caption.fillColor;
+
+  let widest = 0;
+  let y = topY;
+  for (const line of lines) {
+    widest = Math.max(widest, context.measureText(line).width);
+    context.strokeText(line, centerX, y);
+    context.fillText(line, centerX, y);
+    y += lineHeight;
+  }
+
+  caption.box = { x: centerX - widest / 2, y: topY, w: widest, h: blockHeight };
+}
+
+/* Repaint the whole maker scene: clear, the plain template, then every caption on
+   top. Clearing first means transparent templates and moved captions never ghost. */
 function drawMakerScene() {
   if (!currentTemplateImage) {
     return;
   }
   makerCtx.clearRect(0, 0, makerLogicalW, makerLogicalH);
   makerCtx.drawImage(currentTemplateImage, 0, 0, makerLogicalW, makerLogicalH);
+  for (const caption of captions) {
+    drawCaption(makerCtx, caption);
+  }
+}
+
+/* Rebuild the list of caption text boxes. Each row is an input (typing redraws the
+   canvas live) plus a button to remove that caption. */
+function renderCaptionList() {
+  const list = document.getElementById('caption-list');
+  list.innerHTML = '';
+  captions.forEach((caption) => {
+    const row = document.createElement('div');
+    row.className = 'caption-row';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'caption-input';
+    input.value = caption.text;
+    input.placeholder = caption.label;
+    input.setAttribute('aria-label', caption.label);
+    input.addEventListener('input', () => {
+      caption.text = input.value;
+      drawMakerScene();
+    });
+    // Remember which caption is "active" so Step 3's style controls know the target.
+    input.addEventListener('focus', () => { selectedCaptionId = caption.id; });
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'caption-remove';
+    remove.textContent = '×';
+    remove.setAttribute('aria-label', 'Remove caption: ' + caption.label);
+    remove.addEventListener('click', () => removeCaption(caption.id));
+
+    row.appendChild(input);
+    row.appendChild(remove);
+    list.appendChild(row);
+  });
+}
+
+/* Add an extra caption (beyond the template's default boxes), centered, and focus
+   it so the user can type right away. */
+function addCaption() {
+  const caption = makeCaption('Text ' + (captions.length + 1), 0.5, 0.5);
+  captions.push(caption);
+  selectedCaptionId = caption.id;
+  renderCaptionList();
+  drawMakerScene();
+  const inputs = document.querySelectorAll('#caption-list .caption-input');
+  if (inputs.length) {
+    inputs[inputs.length - 1].focus();
+  }
+}
+
+/* Remove a caption by id and repaint. */
+function removeCaption(id) {
+  captions = captions.filter((caption) => caption.id !== id);
+  if (selectedCaptionId === id) {
+    selectedCaptionId = captions.length ? captions[0].id : null;
+  }
+  renderCaptionList();
+  drawMakerScene();
 }
 
 /* Paint a centered notice on the maker canvas over a soft gradient, so the canvas
@@ -908,6 +1064,9 @@ async function applyTemplate(template) {
   currentTemplate = template;
   currentTemplateImage = image;
   setupMakerCanvasFor(image);
+  // Start fresh with the right number of caption boxes for this template.
+  seedCaptions(template.boxCount);
+  renderCaptionList();
   drawMakerScene();
   makerCanvas.setAttribute(
     'aria-label',
@@ -1036,6 +1195,7 @@ function init() {
   makerButton = document.getElementById('maker-new');
   makerButton.addEventListener('click', showNewTemplate);
   document.getElementById('maker-category').addEventListener('change', handleMakerCategoryChange);
+  document.getElementById('caption-add').addEventListener('click', addCaption);
 
   // Start on a random gradient so the default state has some variety.
   currentGradientIndex = Math.floor(Math.random() * GRADIENTS.length);
