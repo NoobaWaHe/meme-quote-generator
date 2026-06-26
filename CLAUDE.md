@@ -39,9 +39,15 @@ result as a high-quality PNG. Runs entirely in the browser — no server, no log
   which is keyless and CORS-enabled (works from file:// and GitHub Pages).
   Controlled by the "Live quotes" checkbox (on by default). Always falls back to
   the bundled QUOTES on any network/timeout/error, so the app still works offline.
+- Meme mode: a second mode (toggle at the top). Pulls random memes from
+  meme-api.com (free, keyless, CORS-enabled). Shows the plain original image with
+  NO added text (text is the user's to add later). "Surprise me" pools batches
+  (up to 50 each) from several safe subreddits into a shuffled pool of ~200+ and
+  serves them with no repeats; a category pulls from its own subreddit. Keeps a
+  "Recent" history of the last 6 (click to revisit) and filters NSFW / non-image.
 
 ## Out of scope (don't add unless I ask)
-- Meme / Impact-font mode
+- Impact-font meme caption editor (user adds their own text onto a meme)
 - Font / color pickers
 - Draggable text
 - Saving favorites

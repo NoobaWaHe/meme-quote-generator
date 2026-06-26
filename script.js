@@ -89,6 +89,9 @@ let memeHistory = [];             // up to MEME_HISTORY_MAX recent memes (oldest
 let currentMemeIndex = -1;        // which history item is currently on screen
 let isFetchingMeme = false;       // guards against overlapping meme fetches
 let memeButton = null;            // cached so we can disable it while fetching
+let memePool = [];                // shuffled, not-yet-shown memes ready to serve
+let memePoolKey = null;           // which source the current pool was built for
+const seenMemeLinks = new Set();  // memes already shown this session (avoids repeats)
 
 /* Grab the canvas and its 2D context once. */
 const canvas = document.getElementById('quote-canvas');
@@ -107,8 +110,15 @@ const QUOTE_API_URL = 'https://dummyjson.com/quotes/random';
    request from one of a few safe, meme-heavy subreddits and still skip anything
    flagged NSFW. */
 const MEME_API_URL = 'https://meme-api.com/gimme';
-const SAFE_SUBREDDITS = ['wholesomememes', 'memes', 'ProgrammerHumor'];
+/* A spread of safe, meme-heavy subreddits. "Surprise me" pools batches from all
+   of them (a couple hundred memes) so you can pull for a long time before any
+   repeat; choosing a category pulls from just its subreddit. */
+const SAFE_SUBREDDITS = [
+  'memes', 'wholesomememes', 'ProgrammerHumor', 'HistoryMemes', 'me_irl',
+  'meirl', 'AdviceAnimals', 'comedyheaven', 'terriblefacebookmemes',
+];
 const MEME_HISTORY_MAX = 6;
+const MEME_BATCH_SIZE = 50; // memes requested per subreddit (API returns up to this)
 
 /* Pick a random quote. If we happen to land on the one already showing, step to
    the next one so the button always visibly changes something. */
@@ -462,14 +472,9 @@ async function handleImageChange(event) {
    history of the ones you've seen. No text is added to the image.
    ============================================================ */
 
-/* Which subreddit to pull from, based on the category selector. "Surprise me"
-   picks randomly from a few safe, meme-heavy subreddits. */
-function pickSubreddit() {
-  const value = document.getElementById('meme-source-select').value;
-  if (value === 'surprise') {
-    return SAFE_SUBREDDITS[Math.floor(Math.random() * SAFE_SUBREDDITS.length)];
-  }
-  return value;
+/* The category currently selected ('surprise' or a specific subreddit). */
+function selectedMemeSource() {
+  return document.getElementById('meme-source-select').value;
 }
 
 /* Accept only URLs that point straight at an image, so we skip Reddit videos and
@@ -486,36 +491,90 @@ function pickThumb(data) {
   return data.url;
 }
 
-/* Fetch a random meme, retrying a few times to skip anything NSFW, marked as a
-   spoiler, or not a direct image. Throws if nothing suitable turns up. */
-async function fetchMeme(subreddit) {
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
-    let data;
-    try {
-      const response = await fetch(MEME_API_URL + '/' + subreddit, {
-        signal: controller.signal,
-        cache: 'no-store',
-      });
-      if (!response.ok) {
-        throw new Error('HTTP ' + response.status);
-      }
-      data = await response.json();
-    } finally {
-      clearTimeout(timer);
-    }
+/* Turn one API record into our meme shape, or null if it isn't a safe, directly
+   viewable image. */
+function mapMeme(data) {
+  if (!data || !data.url || data.nsfw || data.spoiler || !isLikelyImageUrl(data.url)) {
+    return null;
+  }
+  return {
+    url: data.url,
+    title: data.title || 'Meme',
+    postLink: data.postLink || '',
+    thumb: pickThumb(data),
+  };
+}
 
-    if (data && data.url && !data.nsfw && !data.spoiler && isLikelyImageUrl(data.url)) {
-      return {
-        url: data.url,
-        title: data.title || 'Meme',
-        postLink: data.postLink || '',
-        thumb: pickThumb(data),
-      };
+/* Fetch a batch of memes from one subreddit (the API returns up to ~50). Returns
+   a possibly-empty array of safe, image-only memes. */
+async function fetchMemeBatch(subreddit) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(MEME_API_URL + '/' + subreddit + '/' + MEME_BATCH_SIZE, {
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    if (!response.ok) {
+      throw new Error('HTTP ' + response.status);
+    }
+    const data = await response.json();
+    const list = Array.isArray(data.memes) ? data.memes : data.url ? [data] : [];
+    return list.map(mapMeme).filter(Boolean);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/* Shuffle an array in place (Fisher–Yates) so the pool serves in random order. */
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+/* Build a pool for a source: "surprise" combines batches from every safe
+   subreddit (a couple hundred memes); a category uses just its subreddit.
+   Duplicates and already-seen memes are dropped so you keep getting new ones. */
+async function buildMemePool(sourceKey) {
+  const subreddits = sourceKey === 'surprise' ? SAFE_SUBREDDITS : [sourceKey];
+  // Fetch every subreddit at once; ignore any individual failures.
+  const batches = await Promise.all(
+    subreddits.map((sub) => fetchMemeBatch(sub).catch(() => []))
+  );
+  const byUrl = new Map();
+  for (const batch of batches) {
+    for (const meme of batch) {
+      if (!byUrl.has(meme.url) && !seenMemeLinks.has(meme.postLink)) {
+        byUrl.set(meme.url, meme);
+      }
     }
   }
-  throw new Error('No suitable meme found');
+  return shuffle(Array.from(byUrl.values()));
+}
+
+/* Get the next unseen meme, (re)building the pool when the source changes or the
+   pool runs dry. If every fresh meme has already been seen, forget the seen list
+   so we can keep serving instead of failing. */
+async function nextMemeFromPool(sourceKey) {
+  if (sourceKey !== memePoolKey || memePool.length === 0) {
+    memePool = await buildMemePool(sourceKey);
+    memePoolKey = sourceKey;
+    if (memePool.length === 0 && seenMemeLinks.size > 0) {
+      seenMemeLinks.clear();
+      memePool = await buildMemePool(sourceKey);
+    }
+  }
+  if (memePool.length === 0) {
+    throw new Error('No memes available');
+  }
+  const meme = memePool.pop();
+  if (meme.postLink) {
+    seenMemeLinks.add(meme.postLink);
+  }
+  return meme;
 }
 
 /* Show a friendly message (or error) in the meme status line. */
@@ -574,7 +633,7 @@ async function showNewMeme() {
   document.querySelector('.meme-stage').classList.add('is-loading');
   showMemeMessage('Pulling a fresh meme…', false);
   try {
-    const meme = await fetchMeme(pickSubreddit());
+    const meme = await nextMemeFromPool(selectedMemeSource());
     memeHistory.push(meme);
     if (memeHistory.length > MEME_HISTORY_MAX) {
       memeHistory.shift(); // drop the oldest so we keep at most 6
