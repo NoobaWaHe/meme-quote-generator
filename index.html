@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Makes the layout use the real device width so it works on phones. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Tells the browser this is a dark UI and tints the mobile address bar. -->
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#0b1020" />
+  <meta name="description" content="Make and download shareable inspirational quote images, right in your browser." />
+  <title>Quote Image Maker</title>
+  <!-- Relative path so it still works when hosted on GitHub Pages. -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Semantic landmarks (header / main / footer) help screen readers and keyboards. -->
+  <header class="site-header">
+    <h1>Quote Image Maker</h1>
+    <p class="tagline">Turn any photo into a shareable quote image.</p>
+  </header>
+
+  <main class="app">
+    <!-- The canvas is the live preview. role="img" + aria-label tells assistive
+         tech it is a picture. The width/height attributes give it a size before
+         JavaScript runs, so the page never flashes empty. -->
+    <section class="preview">
+      <canvas
+        id="quote-canvas"
+        width="1080"
+        height="1080"
+        role="img"
+        aria-label="Preview of an inspirational quote on a background"
+      ></canvas>
+    </section>
+
+    <!-- Background group: pick one of three bundled gradients, or upload a photo.
+         role="group" + aria-label tells assistive tech these controls belong
+         together. Each swatch is a real <button> so it works with the keyboard,
+         and aria-pressed says which gradient is currently active. -->
+    <div class="backgrounds" role="group" aria-label="Background">
+      <span class="backgrounds__label">Background</span>
+
+      <div class="swatches">
+        <button class="swatch swatch--aurora" type="button" data-gradient="0"
+          aria-pressed="true" aria-label="Aurora gradient, violet to teal"></button>
+        <button class="swatch swatch--deepsea" type="button" data-gradient="1"
+          aria-pressed="false" aria-label="Deep sea gradient, teal greys"></button>
+        <button class="swatch swatch--ember" type="button" data-gradient="2"
+          aria-pressed="false" aria-label="Ember gradient, warm browns"></button>
+      </div>
+
+      <!-- The real file input is visually hidden; this <label> is the button the
+           user sees and clicks. They stay linked by id/for, so it is fully
+           keyboard- and screen-reader-friendly. -->
+      <span class="field">
+        <label class="button button--ghost" for="image-input">Choose image</label>
+        <input id="image-input" class="visually-hidden" type="file" accept="image/*" />
+      </span>
+    </div>
+
+    <div class="controls">
+      <button id="new-quote" class="button button--ghost" type="button"
+        aria-keyshortcuts="Space" title="New quote (Space)">New quote</button>
+      <button id="download" class="button button--primary" type="button">Download PNG</button>
+    </div>
+
+    <!-- Teaches the keyboard shortcut without getting in the way. -->
+    <p class="hint">Tip: press <kbd>Space</kbd> for a new quote.</p>
+
+    <!-- Friendly messages and errors appear here. aria-live announces them
+         politely without stealing keyboard focus. -->
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+  </main>
+
+  <footer class="site-footer">
+    <p>Runs entirely in your browser — your images never leave your device.</p>
+  </footer>
+
+  <!-- Loaded last so all the HTML above already exists when the script runs. -->
+  <script src="script.js"></script>
+</body>
+</html>

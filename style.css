@@ -1,0 +1,321 @@
+/* ============================================================
+   Quote Image Maker — styles
+   A small, cohesive palette and type scale kept in one place so
+   the look stays consistent and easy to tweak later.
+   ============================================================ */
+
+:root {
+  --bg: #0b1020;          /* page background */
+  --surface: #141a2e;     /* cards / panels */
+  --text: #e7ebf3;        /* main text */
+  --muted: #9aa4bd;       /* secondary text */
+  --primary: #6c8cff;     /* accent / primary button */
+  --ring: #9db4ff;        /* focus outline */
+  --radius: 12px;
+}
+
+/* border-box makes padding count *inside* an element's width, which keeps the
+   responsive sizing below predictable. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  padding: 1.5rem 1rem 2.5rem;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #1b2547 0%, transparent 60%),
+    var(--bg);
+  /* Stack everything in one centered column. */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+/* ---------- Header / footer ---------- */
+
+.site-header {
+  text-align: center;
+}
+
+/* The title uses the same elegant serif as the quote on the canvas, so the page
+   and the product it makes share one visual identity. */
+.site-header h1 {
+  margin: 0 0 0.4rem;
+  font-family: "Hoefler Text", "Palatino Linotype", Palatino, Georgia, serif;
+  font-weight: 600;
+  font-size: clamp(1.75rem, 5vw, 2.5rem);
+  letter-spacing: -0.01em;
+}
+
+.tagline {
+  margin: 0;
+  color: var(--muted);
+}
+
+.site-footer {
+  margin-top: auto; /* pin to the bottom on tall screens */
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* ---------- Main column ---------- */
+
+.app {
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+/* ---------- Canvas preview ---------- */
+
+.preview {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+/* width:100% + height:auto lets the canvas shrink to fit small screens while
+   keeping the exact aspect ratio of its intrinsic pixel size — so the preview
+   is never stretched or squashed. */
+#quote-canvas {
+  width: 100%;
+  max-width: 520px;
+  height: auto;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  background: var(--surface); /* shown for a split second before the first draw */
+}
+
+/* ---------- Controls ---------- */
+
+.controls {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.field {
+  display: inline-flex;
+}
+
+/* Shared button look. min-height keeps every tap target at least 44px tall,
+   and font-size 1rem stops mobile browsers from zooming in when tapped. */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.65rem 1.2rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.06s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+/* "Ghost" buttons: subtle outline style for secondary actions. */
+.button--ghost {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: var(--text);
+}
+
+.button--ghost:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+/* Primary button: filled accent for the main action (Download). */
+.button--primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #0b1020;
+  /* A soft colored lift marks this as the main action (Download). */
+  box-shadow: 0 6px 18px rgba(108, 140, 255, 0.35);
+}
+
+.button--primary:hover {
+  background: #5a7cff;
+  border-color: #5a7cff;
+}
+
+/* A small press effect makes clicks feel responsive. */
+.button:active {
+  transform: translateY(1px);
+}
+
+/* Clear, high-contrast focus ring for keyboard users. The file input is hidden,
+   so when it gains focus we ring its visible <label> (the .button inside .field)
+   via :focus-within on the wrapper — otherwise that control would show no focus. */
+.button:focus-visible,
+.field:focus-within .button {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* ---------- Background picker (gradient swatches) ---------- */
+
+.backgrounds {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+}
+
+.backgrounds__label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.swatches {
+  display: inline-flex;
+  gap: 0.5rem;
+}
+
+/* Each swatch previews its gradient. Height 44px keeps it an easy tap target. */
+.swatch {
+  width: 52px;
+  height: 44px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.06s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.swatch:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.swatch:active {
+  transform: translateY(1px);
+}
+
+/* The active gradient gets a clear accent ring. aria-pressed is set by the
+   script, so this also keeps the visual and the accessible state in sync. */
+.swatch[aria-pressed="true"] {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(108, 140, 255, 0.35);
+}
+
+.swatch:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* These previews mirror the GRADIENTS array in script.js — keep them in sync.
+   135deg matches the canvas gradient, which runs top-left to bottom-right. */
+.swatch--aurora {
+  background-image: linear-gradient(135deg, #3a1c71, #5f2c82, #2c5364);
+}
+
+.swatch--deepsea {
+  background-image: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+}
+
+.swatch--ember {
+  background-image: linear-gradient(135deg, #2c1810, #643d2b, #8e3b2f);
+}
+
+/* ---------- Status / error line ---------- */
+
+.status {
+  width: 100%;
+  margin: 0;
+  min-height: 1.25rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+.status--error {
+  color: #ff8585;
+  font-weight: 600;
+}
+
+/* ---------- Keyboard shortcut hint ---------- */
+
+.hint {
+  margin: 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* A small "keycap" so the Space shortcut reads as a key, not just a word. */
+.hint kbd {
+  font: inherit;
+  font-size: 0.8em;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+/* ---------- Helpers ---------- */
+
+/* Hides the real file input visually but keeps it focusable and linked to its
+   label. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- Small screens ---------- */
+
+@media (max-width: 420px) {
+  /* Stack the buttons full-width so they are easy to tap on a phone. */
+  .controls {
+    flex-direction: column;
+  }
+
+  .field,
+  .button {
+    width: 100%;
+  }
+}
+
+/* ---------- Respect "reduce motion" ---------- */
+
+/* Some people get motion sick or simply prefer no movement. Turn off the hover
+   transitions and press animations for them. */
+@media (prefers-reduced-motion: reduce) {
+  .button,
+  .swatch {
+    transition: none;
+  }
+
+  .button:active,
+  .swatch:active {
+    transform: none;
+  }
+}
