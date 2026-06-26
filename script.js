@@ -84,6 +84,12 @@ let liveMode = true;              // when on, "New quote" fetches from the onlin
 let isFetching = false;           // guards against overlapping fetches
 let newQuoteButton = null;        // cached so we can disable it while a fetch runs
 
+let currentMode = 'quote';        // 'quote' or 'meme'
+let memeHistory = [];             // up to MEME_HISTORY_MAX recent memes (oldest..newest)
+let currentMemeIndex = -1;        // which history item is currently on screen
+let isFetchingMeme = false;       // guards against overlapping meme fetches
+let memeButton = null;            // cached so we can disable it while fetching
+
 /* Grab the canvas and its 2D context once. */
 const canvas = document.getElementById('quote-canvas');
 const ctx = canvas.getContext('2d');
@@ -96,6 +102,13 @@ const CANVAS_SIZE = 1080;
    { quote, author } object. If it can't be reached we fall back to QUOTES,
    so the app keeps working fully offline. */
 const QUOTE_API_URL = 'https://dummyjson.com/quotes/random';
+
+/* Meme mode pulls random memes from a free, keyless, CORS-enabled API. We always
+   request from one of a few safe, meme-heavy subreddits and still skip anything
+   flagged NSFW. */
+const MEME_API_URL = 'https://meme-api.com/gimme';
+const SAFE_SUBREDDITS = ['wholesomememes', 'memes', 'ProgrammerHumor'];
+const MEME_HISTORY_MAX = 6;
 
 /* Pick a random quote. If we happen to land on the one already showing, step to
    the next one so the button always visibly changes something. */
@@ -402,7 +415,11 @@ function handleKeydown(event) {
     return;
   }
   event.preventDefault(); // stop the page from scrolling down
-  showNewQuote();
+  if (currentMode === 'meme') {
+    showNewMeme();
+  } else {
+    showNewQuote();
+  }
 }
 
 /* Handle a chosen file: reject non-images politely, otherwise load it, set it as
@@ -440,6 +457,155 @@ async function handleImageChange(event) {
   }
 }
 
+/* ============================================================
+   Meme mode — pull random memes from a free API and keep a short
+   history of the ones you've seen. No text is added to the image.
+   ============================================================ */
+
+/* Which subreddit to pull from, based on the category selector. "Surprise me"
+   picks randomly from a few safe, meme-heavy subreddits. */
+function pickSubreddit() {
+  const value = document.getElementById('meme-source-select').value;
+  if (value === 'surprise') {
+    return SAFE_SUBREDDITS[Math.floor(Math.random() * SAFE_SUBREDDITS.length)];
+  }
+  return value;
+}
+
+/* Accept only URLs that point straight at an image, so we skip Reddit videos and
+   galleries that wouldn't show in an <img>. */
+function isLikelyImageUrl(url) {
+  return /\.(jpe?g|png|gif|webp)(\?.*)?$/i.test(url);
+}
+
+/* A smaller preview image for the history thumbnail (falls back to the full one). */
+function pickThumb(data) {
+  if (Array.isArray(data.preview) && data.preview.length) {
+    return data.preview[Math.min(2, data.preview.length - 1)];
+  }
+  return data.url;
+}
+
+/* Fetch a random meme, retrying a few times to skip anything NSFW, marked as a
+   spoiler, or not a direct image. Throws if nothing suitable turns up. */
+async function fetchMeme(subreddit) {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    let data;
+    try {
+      const response = await fetch(MEME_API_URL + '/' + subreddit, {
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+      if (!response.ok) {
+        throw new Error('HTTP ' + response.status);
+      }
+      data = await response.json();
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (data && data.url && !data.nsfw && !data.spoiler && isLikelyImageUrl(data.url)) {
+      return {
+        url: data.url,
+        title: data.title || 'Meme',
+        postLink: data.postLink || '',
+        thumb: pickThumb(data),
+      };
+    }
+  }
+  throw new Error('No suitable meme found');
+}
+
+/* Show a friendly message (or error) in the meme status line. */
+function showMemeMessage(text, isError) {
+  const status = document.getElementById('meme-status');
+  status.textContent = text;
+  status.classList.toggle('status--error', Boolean(isError));
+}
+
+/* Show a meme in the stage. Per the brief, nothing is drawn on or around it —
+   just the plain image. The alt text (for screen readers) carries the title. */
+function renderMeme(meme) {
+  const stage = document.querySelector('.meme-stage');
+  const image = document.getElementById('meme-image');
+  stage.classList.add('is-loading'); // removed again on the image's load event
+  image.alt = meme.title;
+  image.src = meme.url;
+  document.getElementById('meme-link').href = meme.postLink || '#';
+}
+
+/* Rebuild the "Recent" filmstrip from history, marking the current frame. */
+function renderHistory() {
+  const strip = document.getElementById('meme-strip');
+  strip.innerHTML = '';
+  memeHistory.forEach((meme, index) => {
+    const thumb = document.createElement('button');
+    thumb.type = 'button';
+    thumb.className = 'meme-thumb';
+    thumb.style.backgroundImage = 'url("' + meme.thumb + '")';
+    thumb.setAttribute('aria-label', 'View this meme: ' + meme.title);
+    thumb.setAttribute('aria-pressed', index === currentMemeIndex ? 'true' : 'false');
+    thumb.addEventListener('click', () => setCurrentMeme(index));
+    strip.appendChild(thumb);
+  });
+}
+
+/* Jump back to a meme already in history (no new request). */
+function setCurrentMeme(index) {
+  if (index < 0 || index >= memeHistory.length) {
+    return;
+  }
+  currentMemeIndex = index;
+  renderMeme(memeHistory[index]);
+  renderHistory();
+  showMemeMessage('', false);
+}
+
+/* Pull a fresh meme, add it to the (max 6) history, and show it. Any failure is
+   reported without breaking the page. */
+async function showNewMeme() {
+  if (isFetchingMeme) {
+    return; // a request is already in flight
+  }
+  isFetchingMeme = true;
+  memeButton.disabled = true;
+  document.querySelector('.meme-stage').classList.add('is-loading');
+  showMemeMessage('Pulling a fresh meme…', false);
+  try {
+    const meme = await fetchMeme(pickSubreddit());
+    memeHistory.push(meme);
+    if (memeHistory.length > MEME_HISTORY_MAX) {
+      memeHistory.shift(); // drop the oldest so we keep at most 6
+    }
+    currentMemeIndex = memeHistory.length - 1;
+    renderMeme(meme);
+    renderHistory();
+    showMemeMessage('', false);
+  } catch (error) {
+    document.querySelector('.meme-stage').classList.remove('is-loading');
+    showMemeMessage('Could not load a meme. Check your connection and try again.', true);
+  } finally {
+    isFetchingMeme = false;
+    memeButton.disabled = false;
+  }
+}
+
+/* Switch between Quote and Meme modes, lazy-loading the first meme the first
+   time meme mode is opened. */
+function setMode(mode) {
+  currentMode = mode;
+  const isQuote = mode === 'quote';
+  document.getElementById('quote-panel').hidden = !isQuote;
+  document.getElementById('meme-panel').hidden = isQuote;
+  document.getElementById('mode-quote').setAttribute('aria-pressed', String(isQuote));
+  document.getElementById('mode-meme').setAttribute('aria-pressed', String(!isQuote));
+  if (!isQuote && memeHistory.length === 0) {
+    showNewMeme();
+  }
+}
+
 /* Wire up the controls and draw the first quote so the screen is never blank. */
 function init() {
   newQuoteButton = document.getElementById('new-quote');
@@ -458,6 +624,23 @@ function init() {
   for (const swatch of swatchButtons) {
     swatch.addEventListener('click', () => selectGradient(Number(swatch.dataset.gradient)));
   }
+
+  // --- Meme mode wiring ---
+  document.getElementById('mode-quote').addEventListener('click', () => setMode('quote'));
+  document.getElementById('mode-meme').addEventListener('click', () => setMode('meme'));
+  memeButton = document.getElementById('meme-new');
+  memeButton.addEventListener('click', showNewMeme);
+  // Changing the category pulls a fresh meme from it right away.
+  document.getElementById('meme-source-select').addEventListener('change', showNewMeme);
+  // Clear the loading state once the image actually arrives (or report a failure).
+  const memeImage = document.getElementById('meme-image');
+  memeImage.addEventListener('load', () => {
+    document.querySelector('.meme-stage').classList.remove('is-loading');
+  });
+  memeImage.addEventListener('error', () => {
+    document.querySelector('.meme-stage').classList.remove('is-loading');
+    showMemeMessage('That meme image would not load. Try another one.', true);
+  });
 
   // Start on a random gradient so the default state has some variety.
   currentGradientIndex = Math.floor(Math.random() * GRADIENTS.length);

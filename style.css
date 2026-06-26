@@ -9,7 +9,9 @@
   --surface: #141a2e;     /* cards / panels */
   --text: #e7ebf3;        /* main text */
   --muted: #9aa4bd;       /* secondary text */
-  --primary: #6c8cff;     /* accent / primary button */
+  --primary: #6c8cff;     /* accent / primary button (quote mode) */
+  --meme: #ff6a3d;        /* accent / primary button (meme mode) */
+  --meme-press: #ff5224;  /* meme accent, pressed/hover */
   --ring: #9db4ff;        /* focus outline */
   --radius: 12px;
 }
@@ -75,6 +77,66 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 1.25rem;
+}
+
+/* ---------- Mode switcher (Quote | Meme) ---------- */
+
+/* A segmented pill. The active segment takes on its mode's accent colour, so the
+   toggle itself signals which world you're in. */
+.modes {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+}
+
+.mode-btn {
+  min-height: 44px;
+  padding: 0 1.3rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.mode-btn:hover {
+  color: var(--text);
+}
+
+.mode-btn:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+}
+
+#mode-quote[aria-pressed="true"] {
+  background: var(--primary);
+  color: #0b1020;
+}
+
+#mode-meme[aria-pressed="true"] {
+  background: var(--meme);
+  color: #1a0d07;
+}
+
+/* Each mode lives in a panel; only the active one is shown. The explicit
+   [hidden] rule is needed because .panel sets display:flex, which would
+   otherwise win over the browser default for [hidden]. */
+.panel {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.panel[hidden] {
+  display: none;
 }
 
 /* ---------- Canvas preview ---------- */
@@ -153,6 +215,19 @@ body {
 .button--primary:hover {
   background: #5a7cff;
   border-color: #5a7cff;
+}
+
+/* Meme mode's primary action — warm, upvote-orange. */
+.button--meme {
+  background: var(--meme);
+  border-color: var(--meme);
+  color: #1a0d07;
+  box-shadow: 0 6px 18px rgba(255, 106, 61, 0.35);
+}
+
+.button--meme:hover {
+  background: var(--meme-press);
+  border-color: var(--meme-press);
 }
 
 /* A small press effect makes clicks feel responsive. */
@@ -342,18 +417,169 @@ body {
   }
 }
 
+/* ---------- Meme mode ---------- */
+
+/* Framed stage that holds the plain meme image and centers it. position:relative
+   anchors the loading spinner. */
+.meme-stage {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  min-height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  background: var(--surface);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+/* The meme keeps its real aspect ratio and fits inside the stage (never cropped
+   or stretched). */
+.meme-image {
+  max-width: 100%;
+  max-height: 62vh;
+  border-radius: 8px;
+  display: block;
+  opacity: 1;
+  transition: opacity 0.25s ease;
+}
+
+/* While a new meme loads, dim the old one and show the spinner. */
+.meme-stage.is-loading .meme-image {
+  opacity: 0.15;
+}
+
+.meme-spinner {
+  position: absolute;
+  display: none;
+  width: 30px;
+  height: 30px;
+  border: 3px solid rgba(255, 255, 255, 0.22);
+  border-top-color: var(--meme);
+  border-radius: 50%;
+  animation: meme-spin 0.8s linear infinite;
+}
+
+.meme-stage.is-loading .meme-spinner {
+  display: block;
+}
+
+@keyframes meme-spin {
+  to { transform: rotate(360deg); }
+}
+
+.meme-controls {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.meme-from {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.select {
+  min-height: 44px;
+  padding: 0 0.7rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--text);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.select:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* The "Recent" filmstrip — the signature of meme mode. */
+.meme-history {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.meme-history__label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.meme-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 56px;
+}
+
+/* Each frame is a clickable thumbnail of a meme you pulled. */
+.meme-thumb {
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background-color: var(--surface);
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+  transition: transform 0.06s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.meme-thumb:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* The frame you're currently viewing is lifted with the meme accent ring. */
+.meme-thumb[aria-pressed="true"] {
+  border-color: var(--meme);
+  box-shadow: 0 0 0 3px rgba(255, 106, 61, 0.35);
+  transform: translateY(-2px);
+}
+
+.meme-thumb:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+}
+
 /* ---------- Respect "reduce motion" ---------- */
 
 /* Some people get motion sick or simply prefer no movement. Turn off the hover
-   transitions and press animations for them. */
+   transitions, press animations, and the loading spinner for them. */
 @media (prefers-reduced-motion: reduce) {
   .button,
-  .swatch {
+  .swatch,
+  .mode-btn,
+  .meme-thumb,
+  .meme-image {
     transition: none;
   }
 
   .button:active,
-  .swatch:active {
+  .swatch:active,
+  .meme-thumb[aria-pressed="true"] {
     transform: none;
+  }
+
+  .meme-spinner {
+    animation: none;
   }
 }

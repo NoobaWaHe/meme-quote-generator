@@ -16,70 +16,106 @@
   <!-- Semantic landmarks (header / main / footer) help screen readers and keyboards. -->
   <header class="site-header">
     <h1>Quote Image Maker</h1>
-    <p class="tagline">Turn any photo into a shareable quote image.</p>
+    <p class="tagline">Make quote images — or roll through random memes.</p>
   </header>
 
   <main class="app">
-    <!-- The canvas is the live preview. role="img" + aria-label tells assistive
-         tech it is a picture. The width/height attributes give it a size before
-         JavaScript runs, so the page never flashes empty. -->
-    <section class="preview">
-      <canvas
-        id="quote-canvas"
-        width="1080"
-        height="1080"
-        role="img"
-        aria-label="Preview of an inspirational quote on a background"
-      ></canvas>
-    </section>
+    <!-- Switch between the two tools. Each is a real <button>; aria-pressed marks
+         the active one, and the panels below show/hide with the [hidden] attribute. -->
+    <div class="modes" role="group" aria-label="Choose a mode">
+      <button id="mode-quote" class="mode-btn" type="button" aria-pressed="true">Quote</button>
+      <button id="mode-meme" class="mode-btn" type="button" aria-pressed="false">Meme</button>
+    </div>
 
-    <!-- Background group: pick one of three bundled gradients, or upload a photo.
-         role="group" + aria-label tells assistive tech these controls belong
-         together. Each swatch is a real <button> so it works with the keyboard,
-         and aria-pressed says which gradient is currently active. -->
-    <div class="backgrounds" role="group" aria-label="Background">
-      <span class="backgrounds__label">Background</span>
-
-      <div class="swatches">
-        <button class="swatch swatch--aurora" type="button" data-gradient="0"
-          aria-pressed="true" aria-label="Aurora gradient, violet to teal"></button>
-        <button class="swatch swatch--deepsea" type="button" data-gradient="1"
-          aria-pressed="false" aria-label="Deep sea gradient, teal greys"></button>
-        <button class="swatch swatch--ember" type="button" data-gradient="2"
-          aria-pressed="false" aria-label="Ember gradient, warm browns"></button>
+    <!-- ============================ QUOTE MODE ============================ -->
+    <section id="quote-panel" class="panel" aria-label="Quote image maker">
+      <!-- The canvas is the live preview. role="img" + aria-label tells assistive
+           tech it is a picture. The width/height attributes give it a size before
+           JavaScript runs, so the page never flashes empty. -->
+      <div class="preview">
+        <canvas
+          id="quote-canvas"
+          width="1080"
+          height="1080"
+          role="img"
+          aria-label="Preview of an inspirational quote on a background"
+        ></canvas>
       </div>
 
-      <!-- The real file input is visually hidden; this <label> is the button the
-           user sees and clicks. They stay linked by id/for, so it is fully
-           keyboard- and screen-reader-friendly. -->
-      <span class="field">
-        <label class="button button--ghost" for="image-input">Choose image</label>
-        <input id="image-input" class="visually-hidden" type="file" accept="image/*" />
-      </span>
-    </div>
+      <!-- Background group: pick one of three bundled gradients, or upload a photo. -->
+      <div class="backgrounds" role="group" aria-label="Background">
+        <span class="backgrounds__label">Background</span>
 
-    <div class="controls">
-      <button id="new-quote" class="button button--ghost" type="button"
-        aria-keyshortcuts="Space" title="New quote (Space)">New quote</button>
-      <button id="download" class="button button--primary" type="button">Download PNG</button>
-    </div>
+        <div class="swatches">
+          <button class="swatch swatch--aurora" type="button" data-gradient="0"
+            aria-pressed="true" aria-label="Aurora gradient, violet to teal"></button>
+          <button class="swatch swatch--deepsea" type="button" data-gradient="1"
+            aria-pressed="false" aria-label="Deep sea gradient, teal greys"></button>
+          <button class="swatch swatch--ember" type="button" data-gradient="2"
+            aria-pressed="false" aria-label="Ember gradient, warm browns"></button>
+        </div>
 
-    <!-- Toggle between online "live" quotes and the instant bundled ones. The
-         checkbox sits inside its <label> so the whole label is clickable and
-         the control stays keyboard- and screen-reader-friendly. -->
-    <div class="options">
-      <label class="toggle">
-        <input type="checkbox" id="live-toggle" class="toggle__input" />
-        <span class="toggle__text">Live quotes (fetch from the internet)</span>
-      </label>
-    </div>
+        <!-- The real file input is visually hidden; this <label> is the button the
+             user sees and clicks. -->
+        <span class="field">
+          <label class="button button--ghost" for="image-input">Choose image</label>
+          <input id="image-input" class="visually-hidden" type="file" accept="image/*" />
+        </span>
+      </div>
 
-    <!-- Teaches the keyboard shortcut without getting in the way. -->
-    <p class="hint">Tip: press <kbd>Space</kbd> for a new quote.</p>
+      <div class="controls">
+        <button id="new-quote" class="button button--ghost" type="button"
+          aria-keyshortcuts="Space" title="New quote (Space)">New quote</button>
+        <button id="download" class="button button--primary" type="button">Download PNG</button>
+      </div>
 
-    <!-- Friendly messages and errors appear here. aria-live announces them
-         politely without stealing keyboard focus. -->
-    <p id="status" class="status" role="status" aria-live="polite"></p>
+      <div class="options">
+        <label class="toggle">
+          <input type="checkbox" id="live-toggle" class="toggle__input" />
+          <span class="toggle__text">Live quotes (fetch from the internet)</span>
+        </label>
+      </div>
+
+      <p class="hint">Tip: press <kbd>Space</kbd> for a new quote.</p>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </section>
+
+    <!-- ============================ MEME MODE ============================ -->
+    <section id="meme-panel" class="panel" aria-label="Meme roller" hidden>
+      <!-- The current meme. The spinner shows while a new one loads; the image's
+           alt is set to the meme title so screen readers get the content. -->
+      <!-- Just the plain, original meme image — no added text or captions. The
+           alt is set to the meme's title so screen readers still get content. -->
+      <div class="meme-stage">
+        <div class="meme-spinner" aria-hidden="true"></div>
+        <img id="meme-image" class="meme-image" alt="" />
+      </div>
+
+      <div class="meme-controls">
+        <button id="meme-new" class="button button--meme" type="button"
+          aria-keyshortcuts="Space" title="New meme (Space)">New meme</button>
+        <a id="meme-link" class="button button--ghost" href="#" target="_blank" rel="noopener">View post</a>
+        <label class="meme-from">
+          <span class="meme-from__label">From</span>
+          <select id="meme-source-select" class="select">
+            <option value="surprise">Surprise me</option>
+            <option value="wholesomememes">Wholesome</option>
+            <option value="ProgrammerHumor">Programming</option>
+            <option value="memes">Classic</option>
+          </select>
+        </label>
+      </div>
+
+      <!-- Signature element: a filmstrip of the last 6 memes you pulled. The order
+           is your trail, so you can step back. Thumbnails are injected by JS. -->
+      <div class="meme-history" role="group" aria-label="Recent memes">
+        <span class="meme-history__label">Recent</span>
+        <div id="meme-strip" class="meme-strip"></div>
+      </div>
+
+      <p class="hint">Tip: press <kbd>Space</kbd> for a new meme.</p>
+      <p id="meme-status" class="status" role="status" aria-live="polite"></p>
+    </section>
   </main>
 
   <footer class="site-footer">
