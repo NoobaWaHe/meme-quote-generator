@@ -12,6 +12,8 @@
   --primary: #6c8cff;     /* accent / primary button (quote mode) */
   --meme: #ff6a3d;        /* accent / primary button (meme mode) */
   --meme-press: #ff5224;  /* meme accent, pressed/hover */
+  --maker: #2fd29b;       /* accent / primary button (maker mode) */
+  --maker-press: #22b886; /* maker accent, pressed/hover */
   --ring: #9db4ff;        /* focus outline */
   --radius: 12px;
 }
@@ -124,6 +126,11 @@ body {
   color: #1a0d07;
 }
 
+#mode-maker[aria-pressed="true"] {
+  background: var(--maker);
+  color: #04130d;
+}
+
 /* Each mode lives in a panel; only the active one is shown. The explicit
    [hidden] rule is needed because .panel sets display:flex, which would
    otherwise win over the browser default for [hidden]. */
@@ -150,7 +157,8 @@ body {
 /* width:100% + height:auto lets the canvas shrink to fit small screens while
    keeping the exact aspect ratio of its intrinsic pixel size — so the preview
    is never stretched or squashed. */
-#quote-canvas {
+#quote-canvas,
+#maker-canvas {
   width: 100%;
   max-width: 520px;
   height: auto;
@@ -158,6 +166,15 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
   background: var(--surface); /* shown for a split second before the first draw */
+}
+
+/* Dim the canvas while a template image is loading (paired with the status line). */
+#maker-canvas {
+  transition: opacity 0.2s ease;
+}
+
+#maker-canvas.is-loading {
+  opacity: 0.45;
 }
 
 /* ---------- Controls ---------- */
@@ -228,6 +245,19 @@ body {
 .button--meme:hover {
   background: var(--meme-press);
   border-color: var(--meme-press);
+}
+
+/* Maker mode's primary action — fresh "create" green. */
+.button--maker {
+  background: var(--maker);
+  border-color: var(--maker);
+  color: #04130d;
+  box-shadow: 0 6px 18px rgba(47, 210, 155, 0.32);
+}
+
+.button--maker:hover {
+  background: var(--maker-press);
+  border-color: var(--maker-press);
 }
 
 /* A small press effect makes clicks feel responsive. */
@@ -560,6 +590,86 @@ body {
   outline-offset: 2px;
 }
 
+/* ---------- Meme Maker mode ---------- */
+
+/* A small uppercase section label, reused by the maker's groups. */
+.eyebrow {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+/* The "pick a template" row: category dropdown + the New template button. */
+.maker-pick {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.maker-gallery-wrap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* A scrollable grid of template thumbnails for the chosen category. Capped height
+   so a big category (dozens of templates) stays a tidy, scrollable strip. */
+.maker-gallery {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 0.5rem;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+/* Each thumbnail is a button showing the blank template image. */
+.maker-thumb {
+  aspect-ratio: 1 / 1;
+  padding: 4px;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.06s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.maker-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* show the whole template, never cropped */
+  display: block;
+  border-radius: 4px;
+}
+
+.maker-thumb:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.maker-thumb:active {
+  transform: translateY(1px);
+}
+
+/* The template currently on the canvas gets the maker accent ring. */
+.maker-thumb[aria-pressed="true"] {
+  border-color: var(--maker);
+  box-shadow: 0 0 0 3px rgba(47, 210, 155, 0.35);
+}
+
+.maker-thumb:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+}
+
 /* ---------- Respect "reduce motion" ---------- */
 
 /* Some people get motion sick or simply prefer no movement. Turn off the hover
@@ -569,13 +679,16 @@ body {
   .swatch,
   .mode-btn,
   .meme-thumb,
-  .meme-image {
+  .meme-image,
+  .maker-thumb,
+  #maker-canvas {
     transition: none;
   }
 
   .button:active,
   .swatch:active,
-  .meme-thumb[aria-pressed="true"] {
+  .meme-thumb[aria-pressed="true"],
+  .maker-thumb:active {
     transform: none;
   }
 

@@ -93,9 +93,21 @@ let memePool = [];                // shuffled, not-yet-shown memes ready to serv
 let memePoolKey = null;           // which source the current pool was built for
 const seenMemeLinks = new Set();  // memes already shown this session (avoids repeats)
 
+let makerTemplates = [];          // cached blank templates from Imgflip
+let isFetchingMaker = false;      // guards overlapping template loads
+let currentTemplate = null;       // the template currently on the maker canvas
+let currentTemplateImage = null;  // its loaded <img> (crossOrigin=anonymous)
+let makerLogicalW = 0;            // logical maker-canvas size (matches template aspect)
+let makerLogicalH = 0;
+let makerButton = null;           // cached "New template" button
+
 /* Grab the canvas and its 2D context once. */
 const canvas = document.getElementById('quote-canvas');
 const ctx = canvas.getContext('2d');
+
+/* The maker mode has its own canvas (the meme you're captioning). */
+const makerCanvas = document.getElementById('maker-canvas');
+const makerCtx = makerCanvas.getContext('2d');
 
 /* Logical drawing size (a square). All the draw functions work in these
    coordinates; drawQuoteImage scales the real canvas up for a sharp export. */
@@ -120,6 +132,14 @@ const SAFE_SUBREDDITS = [
 const MEME_HISTORY_MAX = 6;
 const MEME_BATCH_SIZE = 50; // memes requested per subreddit (API returns up to this)
 
+/* Meme Maker mode pulls BLANK meme templates (no caption baked in) so the user
+   can add their own words. Imgflip's get_memes is free, keyless, and CORS-clean
+   for both the JSON and the image bytes — so a template can be drawn on a canvas
+   and exported as a PNG without "tainting" it. Each template tells us its
+   box_count: how many caption slots it's designed for. */
+const IMGFLIP_API_URL = 'https://api.imgflip.com/get_memes';
+const MAKER_MAX_SIZE = 1080; // cap a template's longest side (sharp export, sane size)
+
 /* Pick a random quote. If we happen to land on the one already showing, step to
    the next one so the button always visibly changes something. */
 function getRandomQuote() {
@@ -134,9 +154,15 @@ function getRandomQuote() {
 /* Loading an image is asynchronous, so wrap the old onload/onerror callbacks in
    a Promise. That lets us use async/await and know exactly when the picture is
    ready to draw. */
-function loadImage(src) {
+function loadImage(src, crossOrigin) {
   return new Promise((resolve, reject) => {
     const image = new Image();
+    // For images from another site (meme templates), request them cross-origin so
+    // the canvas stays "clean" and can still be exported as a PNG. Must be set
+    // before src. Harmless for local object URLs, which pass undefined here.
+    if (crossOrigin) {
+      image.crossOrigin = crossOrigin;
+    }
     image.onload = () => resolve(image);
     image.onerror = () => reject(new Error('Image failed to load'));
     image.src = src;
@@ -427,6 +453,8 @@ function handleKeydown(event) {
   event.preventDefault(); // stop the page from scrolling down
   if (currentMode === 'meme') {
     showNewMeme();
+  } else if (currentMode === 'maker') {
+    showNewTemplate();
   } else {
     showNewQuote();
   }
@@ -651,17 +679,319 @@ async function showNewMeme() {
   }
 }
 
-/* Switch between Quote and Meme modes, lazy-loading the first meme the first
-   time meme mode is opened. */
+/* ============================================================
+   Meme Maker mode — pull a BLANK template and let the user caption
+   it themselves. This step loads and draws the plain template;
+   captions, styling, dragging, and export come in later steps.
+   ============================================================ */
+
+/* The chosen caption-count category ('surprise', or a number as a string). */
+function selectedMakerCategory() {
+  return document.getElementById('maker-category').value;
+}
+
+/* Show a friendly message (or error) in the maker status line. */
+function showMakerMessage(text, isError) {
+  const status = document.getElementById('maker-status');
+  status.textContent = text;
+  status.classList.toggle('status--error', Boolean(isError));
+}
+
+/* Toggle the maker's "busy" state in one place: disable the New template button
+   AND the category select (so a category change made mid-load isn't silently
+   dropped), and dim the canvas while an image loads. */
+function setMakerBusy(busy) {
+  makerButton.disabled = busy;
+  document.getElementById('maker-category').disabled = busy;
+  makerCanvas.classList.toggle('is-loading', busy);
+}
+
+/* Fetch the catalogue of blank templates from Imgflip once and cache it. Each
+   becomes { id, name, url, width, height, boxCount }. Throws on any failure so
+   the caller can show a friendly message. */
+async function fetchTemplates() {
+  if (makerTemplates.length) {
+    return makerTemplates; // already loaded — reuse the cache
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(IMGFLIP_API_URL, { signal: controller.signal });
+    if (!response.ok) {
+      throw new Error('HTTP ' + response.status);
+    }
+    const data = await response.json();
+    const list = data && data.data && Array.isArray(data.data.memes) ? data.data.memes : [];
+    makerTemplates = list
+      .filter((t) => t && t.url && t.box_count)
+      .map((t) => ({
+        id: String(t.id),
+        name: t.name || 'Template',
+        url: t.url,
+        width: t.width || 0,
+        height: t.height || 0,
+        boxCount: t.box_count,
+      }));
+    if (!makerTemplates.length) {
+      throw new Error('No templates returned');
+    }
+    return makerTemplates;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/* Fill the category dropdown from the templates we actually have: "Surprise me"
+   plus one option per caption count present (2 captions, 3 captions, …). Building
+   it from the data means the choices always match reality. */
+function populateMakerCategories() {
+  const select = document.getElementById('maker-category');
+  // Don't add the same options twice if this runs again.
+  if (select.dataset.filled === 'true') {
+    return;
+  }
+  const counts = Array.from(new Set(makerTemplates.map((t) => t.boxCount)))
+    .sort((a, b) => a - b);
+  for (const count of counts) {
+    const option = document.createElement('option');
+    option.value = String(count);
+    option.textContent = count + (count === 1 ? ' caption' : ' captions');
+    select.appendChild(option);
+  }
+  select.dataset.filled = 'true';
+}
+
+/* The templates that match the chosen category. "surprise" is everything; a
+   number keeps only templates with exactly that many caption boxes. */
+function templatesForCategory(category) {
+  if (category === 'surprise') {
+    return makerTemplates;
+  }
+  const count = Number(category);
+  return makerTemplates.filter((t) => t.boxCount === count);
+}
+
+/* Pick a random template from a category, avoiding an immediate repeat so the
+   button always visibly changes something. */
+function pickTemplate(category) {
+  const pool = templatesForCategory(category);
+  if (!pool.length) {
+    return null;
+  }
+  if (pool.length === 1) {
+    return pool[0];
+  }
+  const index = Math.floor(Math.random() * pool.length);
+  let template = pool[index];
+  if (currentTemplate && template.id === currentTemplate.id) {
+    template = pool[(index + 1) % pool.length];
+  }
+  return template;
+}
+
+/* Size the maker canvas to match the template's aspect ratio (capped so a huge
+   template doesn't make an enormous canvas), at 2x for a sharp export. */
+function setupMakerCanvasFor(image) {
+  const natW = image.naturalWidth || image.width;
+  const natH = image.naturalHeight || image.height;
+  const fit = Math.min(1, MAKER_MAX_SIZE / Math.max(natW, natH));
+  makerLogicalW = Math.round(natW * fit);
+  makerLogicalH = Math.round(natH * fit);
+  const scale = Math.max(2, window.devicePixelRatio || 1);
+  makerCanvas.width = makerLogicalW * scale;
+  makerCanvas.height = makerLogicalH * scale;
+  makerCtx.setTransform(scale, 0, 0, scale, 0, 0);
+}
+
+/* Repaint the whole maker scene. Right now that's a clear + the plain template;
+   later steps draw the caption layers on top here too. We clear first so a
+   template with transparency (or, later, a moved caption) never ghosts. */
+function drawMakerScene() {
+  if (!currentTemplateImage) {
+    return;
+  }
+  makerCtx.clearRect(0, 0, makerLogicalW, makerLogicalH);
+  makerCtx.drawImage(currentTemplateImage, 0, 0, makerLogicalW, makerLogicalH);
+}
+
+/* Paint a centered notice on the maker canvas over a soft gradient, so the canvas
+   is never blank or stuck showing a stale "loading" message. Used for the
+   first-load placeholder and for a load failure. */
+function paintMakerNotice(text) {
+  makerLogicalW = MAKER_MAX_SIZE;
+  makerLogicalH = MAKER_MAX_SIZE;
+  const scale = Math.max(2, window.devicePixelRatio || 1);
+  makerCanvas.width = makerLogicalW * scale;
+  makerCanvas.height = makerLogicalH * scale;
+  makerCtx.setTransform(scale, 0, 0, scale, 0, 0);
+
+  const stops = GRADIENTS[1];
+  const gradient = makerCtx.createLinearGradient(0, 0, makerLogicalW, makerLogicalH);
+  gradient.addColorStop(0, stops[0]);
+  gradient.addColorStop(0.5, stops[1]);
+  gradient.addColorStop(1, stops[2]);
+  makerCtx.fillStyle = gradient;
+  makerCtx.fillRect(0, 0, makerLogicalW, makerLogicalH);
+
+  const size = Math.round(MAKER_MAX_SIZE / 22);
+  makerCtx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+  makerCtx.textAlign = 'center';
+  makerCtx.textBaseline = 'middle';
+  makerCtx.font = '600 ' + size + 'px system-ui, -apple-system, "Segoe UI", sans-serif';
+  // Reuse the quote word-wrapper so a longer notice fits instead of clipping.
+  const lines = wrapText(makerCtx, text, makerLogicalW * 0.8);
+  const lineHeight = size * 1.3;
+  let y = makerLogicalH / 2 - ((lines.length - 1) * lineHeight) / 2;
+  for (const line of lines) {
+    makerCtx.fillText(line, makerLogicalW / 2, y);
+    y += lineHeight;
+  }
+}
+
+/* Before the first template arrives, show a friendly placeholder. */
+function drawMakerPlaceholder() {
+  paintMakerNotice('Loading a blank template…');
+}
+
+/* If the catalogue can't be loaded at all, replace the placeholder with a clear,
+   actionable message instead of a frozen "loading" canvas. */
+function drawMakerError() {
+  paintMakerNotice('Couldn’t load templates — press New template to try again.');
+}
+
+/* Mark which gallery thumbnail (if any) is the template on the canvas. Cheap —
+   it only flips aria-pressed, it doesn't reload any images. */
+function updateGallerySelection() {
+  const thumbs = document.querySelectorAll('#maker-gallery .maker-thumb');
+  thumbs.forEach((thumb) => {
+    const selected = Boolean(currentTemplate) && thumb.dataset.id === currentTemplate.id;
+    thumb.setAttribute('aria-pressed', selected ? 'true' : 'false');
+  });
+}
+
+/* Rebuild the gallery for the chosen category. Each thumbnail is a button that
+   loads that exact template. Images load lazily so a big category doesn't fetch
+   dozens of pictures at once. */
+function renderMakerGallery() {
+  const gallery = document.getElementById('maker-gallery');
+  const pool = templatesForCategory(selectedMakerCategory());
+  gallery.innerHTML = '';
+  for (const template of pool) {
+    const thumb = document.createElement('button');
+    thumb.type = 'button';
+    thumb.className = 'maker-thumb';
+    thumb.dataset.id = template.id;
+    thumb.title = template.name;
+    thumb.setAttribute('aria-label', 'Use template: ' + template.name);
+    thumb.setAttribute(
+      'aria-pressed',
+      Boolean(currentTemplate) && template.id === currentTemplate.id ? 'true' : 'false'
+    );
+    const img = document.createElement('img');
+    // Request the thumbnail CORS-clean too (crossOrigin before src), so a cached
+    // gallery image can't taint the canvas when the same URL is drawn for export.
+    img.crossOrigin = 'anonymous';
+    img.alt = '';
+    img.loading = 'lazy';
+    img.src = template.url;
+    thumb.appendChild(img);
+    thumb.addEventListener('click', () => selectTemplate(template));
+    gallery.appendChild(thumb);
+  }
+}
+
+/* Core loader: put a specific template on the canvas. No re-entrancy guard — the
+   callers below hold it. Loads the image CORS-clean so the canvas can be exported
+   later. Throws on failure so the caller can show the right message. */
+async function applyTemplate(template) {
+  const image = await loadImage(template.url, 'anonymous');
+  currentTemplate = template;
+  currentTemplateImage = image;
+  setupMakerCanvasFor(image);
+  drawMakerScene();
+  makerCanvas.setAttribute(
+    'aria-label',
+    'Blank meme template: ' + template.name + ' — add your own captions'
+  );
+  updateGallerySelection();
+}
+
+/* Load a specific template chosen from the gallery. */
+async function selectTemplate(template) {
+  if (isFetchingMaker) {
+    return; // a load is already in flight
+  }
+  isFetchingMaker = true;
+  setMakerBusy(true);
+  showMakerMessage('Loading template…', false);
+  try {
+    await applyTemplate(template);
+    showMakerMessage('', false);
+  } catch (error) {
+    showMakerMessage('That template would not load. Try another one.', true);
+  } finally {
+    isFetchingMaker = false;
+    setMakerBusy(false);
+  }
+}
+
+/* Make sure the catalogue is loaded, then show a random template from the chosen
+   category. One "busy" span covers both the catalogue fetch and the image load,
+   so the button and select don't flicker. Reports any failure gracefully. */
+async function showNewTemplate() {
+  if (isFetchingMaker) {
+    return;
+  }
+  isFetchingMaker = true;
+  setMakerBusy(true);
+  showMakerMessage(makerTemplates.length ? 'Loading template…' : 'Loading templates…', false);
+  try {
+    if (!makerTemplates.length) {
+      await fetchTemplates();
+      populateMakerCategories();
+      renderMakerGallery();
+    }
+    const template = pickTemplate(selectedMakerCategory());
+    if (!template) {
+      showMakerMessage('No templates in that category — try another.', false);
+      return;
+    }
+    await applyTemplate(template);
+    showMakerMessage('', false);
+  } catch (error) {
+    if (!currentTemplate) {
+      drawMakerError(); // first load failed — replace the "loading" placeholder
+    }
+    showMakerMessage('Could not load templates. Check your connection and try again.', true);
+  } finally {
+    isFetchingMaker = false;
+    setMakerBusy(false);
+  }
+}
+
+/* Changing the category rebuilds the gallery and rolls a fresh template from it. */
+function handleMakerCategoryChange() {
+  renderMakerGallery();
+  showNewTemplate();
+}
+
+/* Switch between Quote, Memes, and Maker modes, lazy-loading each mode's first
+   content the first time it's opened. */
 function setMode(mode) {
   currentMode = mode;
-  const isQuote = mode === 'quote';
-  document.getElementById('quote-panel').hidden = !isQuote;
-  document.getElementById('meme-panel').hidden = isQuote;
-  document.getElementById('mode-quote').setAttribute('aria-pressed', String(isQuote));
-  document.getElementById('mode-meme').setAttribute('aria-pressed', String(!isQuote));
-  if (!isQuote && memeHistory.length === 0) {
+  document.getElementById('quote-panel').hidden = mode !== 'quote';
+  document.getElementById('meme-panel').hidden = mode !== 'meme';
+  document.getElementById('maker-panel').hidden = mode !== 'maker';
+  document.getElementById('mode-quote').setAttribute('aria-pressed', String(mode === 'quote'));
+  document.getElementById('mode-meme').setAttribute('aria-pressed', String(mode === 'meme'));
+  document.getElementById('mode-maker').setAttribute('aria-pressed', String(mode === 'maker'));
+
+  if (mode === 'meme' && memeHistory.length === 0) {
     showNewMeme();
+  }
+  if (mode === 'maker' && !currentTemplate) {
+    drawMakerPlaceholder(); // never show a blank canvas while the first one loads
+    showNewTemplate();
   }
 }
 
@@ -684,9 +1014,10 @@ function init() {
     swatch.addEventListener('click', () => selectGradient(Number(swatch.dataset.gradient)));
   }
 
-  // --- Meme mode wiring ---
+  // --- Mode switcher wiring ---
   document.getElementById('mode-quote').addEventListener('click', () => setMode('quote'));
   document.getElementById('mode-meme').addEventListener('click', () => setMode('meme'));
+  document.getElementById('mode-maker').addEventListener('click', () => setMode('maker'));
   memeButton = document.getElementById('meme-new');
   memeButton.addEventListener('click', showNewMeme);
   // Changing the category pulls a fresh meme from it right away.
@@ -700,6 +1031,11 @@ function init() {
     document.querySelector('.meme-stage').classList.remove('is-loading');
     showMemeMessage('That meme image would not load. Try another one.', true);
   });
+
+  // --- Maker mode wiring ---
+  makerButton = document.getElementById('maker-new');
+  makerButton.addEventListener('click', showNewTemplate);
+  document.getElementById('maker-category').addEventListener('change', handleMakerCategoryChange);
 
   // Start on a random gradient so the default state has some variety.
   currentGradientIndex = Math.floor(Math.random() * GRADIENTS.length);

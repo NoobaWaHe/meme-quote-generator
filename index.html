@@ -16,7 +16,7 @@
   <!-- Semantic landmarks (header / main / footer) help screen readers and keyboards. -->
   <header class="site-header">
     <h1>Quote Image Maker</h1>
-    <p class="tagline">Make quote images — or roll through random memes.</p>
+    <p class="tagline">Make quote images, roll through random memes, or caption your own.</p>
   </header>
 
   <main class="app">
@@ -24,7 +24,8 @@
          the active one, and the panels below show/hide with the [hidden] attribute. -->
     <div class="modes" role="group" aria-label="Choose a mode">
       <button id="mode-quote" class="mode-btn" type="button" aria-pressed="true">Quote</button>
-      <button id="mode-meme" class="mode-btn" type="button" aria-pressed="false">Meme</button>
+      <button id="mode-meme" class="mode-btn" type="button" aria-pressed="false">Memes</button>
+      <button id="mode-maker" class="mode-btn" type="button" aria-pressed="false">Maker</button>
     </div>
 
     <!-- ============================ QUOTE MODE ============================ -->
@@ -115,6 +116,45 @@
 
       <p class="hint">Tip: press <kbd>Space</kbd> for a new meme.</p>
       <p id="meme-status" class="status" role="status" aria-live="polite"></p>
+    </section>
+
+    <!-- ============================ MEME MAKER MODE ============================ -->
+    <!-- Pull a BLANK template (no caption baked in) and add your own words. The
+         canvas is the editor: later steps draw your captions on top and export it
+         as a PNG. role="img" + aria-label keep it described for screen readers. -->
+    <section id="maker-panel" class="panel" aria-label="Meme maker" hidden>
+      <div class="preview">
+        <canvas
+          id="maker-canvas"
+          width="1080"
+          height="1080"
+          role="img"
+          aria-label="Blank meme template — add your own captions"
+        ></canvas>
+      </div>
+
+      <!-- Choose a template by how many captions it takes (2, 3, 4 …), or get a
+           surprise one. The count options are filled in by JS from the real data. -->
+      <div class="maker-pick" role="group" aria-label="Choose a template">
+        <label class="meme-from">
+          <span class="meme-from__label">Captions</span>
+          <select id="maker-category" class="select">
+            <option value="surprise">Surprise me</option>
+          </select>
+        </label>
+        <button id="maker-new" class="button button--maker" type="button"
+          aria-keyshortcuts="Space" title="New template (Space)">New template</button>
+      </div>
+
+      <!-- A gallery of every template in the chosen category, so you can also pick
+           a specific one. Thumbnails load lazily and are injected by JS. -->
+      <div class="maker-gallery-wrap" role="group" aria-label="Template gallery">
+        <span class="eyebrow">Templates</span>
+        <div id="maker-gallery" class="maker-gallery"></div>
+      </div>
+
+      <p class="hint">Tip: press <kbd>Space</kbd> for a new template.</p>
+      <p id="maker-status" class="status" role="status" aria-live="polite"></p>
     </section>
   </main>
 

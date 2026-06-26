@@ -45,9 +45,20 @@ result as a high-quality PNG. Runs entirely in the browser — no server, no log
   (up to 50 each) from several safe subreddits into a shuffled pool of ~200+ and
   serves them with no repeats; a category pulls from its own subreddit. Keeps a
   "Recent" history of the last 6 (click to revisit) and filters NSFW / non-image.
+- Meme Maker mode: a third mode where the user captions a BLANK template with
+  their own words. Templates come from Imgflip's get_memes
+  (https://api.imgflip.com/get_memes) — free, keyless, and CORS-clean for both the
+  JSON and the image bytes, so the template can be drawn on a <canvas> and exported
+  as a PNG without tainting it (verified). Templates load with
+  crossOrigin="anonymous". Each template's box_count drives a "Captions" category
+  (Surprise me + one option per caption count present, e.g. 2 / 3 / 4 / 5), plus a
+  gallery to pick a specific template. Built in steps: (1) load + categorize + draw
+  the plain template [done]; (2) auto-seed caption boxes by box_count, edit text,
+  classic Impact style; (3) font / color / size pickers; (4) draggable text
+  (pointer + touch, arrow-key nudge for keyboard); (5) export a 2x PNG;
+  (6) frontend-design polish pass.
 
 ## Out of scope (don't add unless I ask)
-- Impact-font meme caption editor (user adds their own text onto a meme)
-- Font / color pickers
-- Draggable text
 - Saving favorites
+- (Earlier "out of scope" items — an Impact-font caption editor, font/color
+  pickers, and draggable text — are now IN scope, built as the Meme Maker mode.)
