@@ -821,10 +821,20 @@ function captionLabel(index, total) {
   return 'Text ' + (index + 1);
 }
 
+/* The current caption style. New captions copy this, and editing a caption's
+   style updates it — so the next caption you add (or the next template's boxes)
+   match what you last chose, instead of snapping back to the defaults. */
+const captionStyle = {
+  fontFamily: 'Impact, "Haettenschweiler", "Arial Narrow Bold", sans-serif',
+  fillColor: '#ffffff',
+  strokeColor: '#000000',
+  fontScale: 0.12,         // font size as a fraction of canvas height
+  uppercase: true,
+};
+
 /* Create one caption. Positions are stored as fractions (0..1) of the canvas, so
    they stay correct when the template — and therefore the canvas size — changes,
-   and so a later step can drag them. The classic meme look (Impact, white fill,
-   black outline, uppercase) lives on the caption now; Step 3 adds controls for it. */
+   and so dragging can move them. Style is copied from captionStyle. */
 function makeCaption(label, nx, ny) {
   captionSeq += 1;
   return {
@@ -834,11 +844,11 @@ function makeCaption(label, nx, ny) {
     nx: nx,                 // normalized center X
     ny: ny,                 // normalized center Y
     nWidth: 0.92,           // wrap width as a fraction of canvas width
-    fontScale: 0.12,        // font size as a fraction of canvas height
-    fontFamily: 'Impact, "Haettenschweiler", "Arial Narrow Bold", sans-serif',
-    fillColor: '#ffffff',
-    strokeColor: '#000000',
-    uppercase: true,
+    fontScale: captionStyle.fontScale,
+    fontFamily: captionStyle.fontFamily,
+    fillColor: captionStyle.fillColor,
+    strokeColor: captionStyle.strokeColor,
+    uppercase: captionStyle.uppercase,
     box: null,              // last drawn bounds (logical px) — used by dragging later
   };
 }
@@ -919,6 +929,10 @@ function renderCaptionList() {
   captions.forEach((caption) => {
     const row = document.createElement('div');
     row.className = 'caption-row';
+    row.dataset.id = caption.id;
+    if (caption.id === selectedCaptionId) {
+      row.classList.add('is-selected');
+    }
 
     const input = document.createElement('input');
     input.type = 'text';
@@ -930,8 +944,8 @@ function renderCaptionList() {
       caption.text = input.value;
       drawMakerScene();
     });
-    // Remember which caption is "active" so Step 3's style controls know the target.
-    input.addEventListener('focus', () => { selectedCaptionId = caption.id; });
+    // Clicking into a caption selects it, so the style controls target it.
+    input.addEventListener('focus', () => selectCaption(caption.id));
 
     const remove = document.createElement('button');
     remove.type = 'button';
@@ -944,6 +958,60 @@ function renderCaptionList() {
     row.appendChild(remove);
     list.appendChild(row);
   });
+  // Keep the style panel in sync with the (possibly new) selected caption.
+  syncStyleControls();
+}
+
+/* Find the caption the style controls currently target, or null if none. */
+function getSelectedCaption() {
+  return captions.find((caption) => caption.id === selectedCaptionId) || null;
+}
+
+/* Make a caption the styling target: highlight its row and load its values into
+   the style controls. It only toggles classes (no list rebuild), so it won't
+   steal focus while you're typing in another field. */
+function selectCaption(id) {
+  selectedCaptionId = id;
+  const rows = document.querySelectorAll('#caption-list .caption-row');
+  rows.forEach((row) => {
+    row.classList.toggle('is-selected', row.dataset.id === String(id));
+  });
+  syncStyleControls();
+}
+
+/* Load the selected caption's style into the controls — or disable them when no
+   caption is selected (before a template loads, or after removing them all). */
+function syncStyleControls() {
+  const caption = getSelectedCaption();
+  const font = document.getElementById('style-font');
+  const size = document.getElementById('style-size');
+  const fill = document.getElementById('style-fill');
+  const stroke = document.getElementById('style-stroke');
+  const upper = document.getElementById('style-upper');
+  const target = document.getElementById('style-target');
+  [font, size, fill, stroke, upper].forEach((el) => { el.disabled = !caption; });
+  if (!caption) {
+    target.textContent = '';
+    return;
+  }
+  target.textContent = '— ' + caption.label;
+  font.value = caption.fontFamily;
+  size.value = String(caption.fontScale);
+  fill.value = caption.fillColor;
+  stroke.value = caption.strokeColor;
+  upper.checked = caption.uppercase;
+}
+
+/* Apply a style change to the selected caption, remember it as the new default so
+   future captions match, and repaint. */
+function updateSelectedStyle(prop, value) {
+  const caption = getSelectedCaption();
+  if (!caption) {
+    return;
+  }
+  caption[prop] = value;
+  captionStyle[prop] = value;
+  drawMakerScene();
 }
 
 /* Add an extra caption (beyond the template's default boxes), centered, and focus
@@ -1196,6 +1264,18 @@ function init() {
   makerButton.addEventListener('click', showNewTemplate);
   document.getElementById('maker-category').addEventListener('change', handleMakerCategoryChange);
   document.getElementById('caption-add').addEventListener('click', addCaption);
+
+  // Style controls act on the selected caption (and become the default for new ones).
+  document.getElementById('style-font')
+    .addEventListener('change', (e) => updateSelectedStyle('fontFamily', e.target.value));
+  document.getElementById('style-size')
+    .addEventListener('input', (e) => updateSelectedStyle('fontScale', parseFloat(e.target.value)));
+  document.getElementById('style-fill')
+    .addEventListener('input', (e) => updateSelectedStyle('fillColor', e.target.value));
+  document.getElementById('style-stroke')
+    .addEventListener('input', (e) => updateSelectedStyle('strokeColor', e.target.value));
+  document.getElementById('style-upper')
+    .addEventListener('change', (e) => updateSelectedStyle('uppercase', e.target.checked));
 
   // Start on a random gradient so the default state has some variety.
   currentGradientIndex = Math.floor(Math.random() * GRADIENTS.length);
