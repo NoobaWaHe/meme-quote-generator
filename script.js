@@ -44,6 +44,9 @@ let currentQuote = null;
 let currentImage = null;          // the uploaded photo, or null for a gradient
 let currentGradientIndex = 0;     // which gradient is showing in the default state
 let swatchButtons = [];           // the gradient swatch buttons, filled in by init()
+let liveMode = true;              // when on, "New quote" fetches from the online API
+let isFetching = false;           // guards against overlapping fetches
+let newQuoteButton = null;        // cached so we can disable it while a fetch runs
 
 /* Grab the canvas and its 2D context once. */
 const canvas = document.getElementById('quote-canvas');
@@ -52,6 +55,11 @@ const ctx = canvas.getContext('2d');
 /* Logical drawing size (a square). All the draw functions work in these
    coordinates; drawQuoteImage scales the real canvas up for a sharp export. */
 const CANVAS_SIZE = 1080;
+
+/* Online source for "live" quotes (keyless, CORS-enabled). It returns a
+   { quote, author } object. If it can't be reached we fall back to QUOTES,
+   so the app keeps working fully offline. */
+const QUOTE_API_URL = 'https://dummyjson.com/quotes/random';
 
 /* Pick a random quote. If we happen to land on the one already showing, step to
    the next one so the button always visibly changes something. */
@@ -74,6 +82,31 @@ function loadImage(src) {
     image.onerror = () => reject(new Error('Image failed to load'));
     image.src = src;
   });
+}
+
+/* Fetch a random quote from the online API and return it in our { text, author }
+   shape. Throws on any network/timeout/bad-response problem so the caller can
+   fall back to a bundled quote. The AbortController gives up after 8 seconds so
+   a stuck request doesn't hang the button forever. */
+async function fetchQuote() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(QUOTE_API_URL, {
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    if (!response.ok) {
+      throw new Error('HTTP ' + response.status);
+    }
+    const data = await response.json();
+    if (!data || !data.quote || !data.author) {
+      throw new Error('Unexpected response shape');
+    }
+    return { text: data.quote, author: data.author };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /* Break a string into lines that each fit inside maxWidth, so long quotes wrap
@@ -284,11 +317,38 @@ function downloadImage() {
   }
 }
 
-/* Pick a fresh quote and repaint onto the CURRENT background (photo or gradient
-   stays put). */
-function showNewQuote() {
-  currentQuote = getRandomQuote();
-  drawQuoteImage();
+/* Show a fresh quote on the CURRENT background (photo or gradient stays put).
+   In live mode we fetch one from the API; if that fails for any reason we fall
+   back to a bundled quote, so the app always keeps working. */
+async function showNewQuote() {
+  if (!liveMode) {
+    currentQuote = getRandomQuote(); // instant, offline
+    drawQuoteImage();
+    return;
+  }
+
+  if (isFetching) {
+    return; // a request is already in flight; ignore extra presses
+  }
+  isFetching = true;
+  newQuoteButton.disabled = true;
+  showMessage('Finding a fresh quote…', false);
+  try {
+    currentQuote = await fetchQuote();
+    showMessage('', false);
+  } catch (error) {
+    currentQuote = getRandomQuote();
+    showMessage('Could not reach the quote service — showing a built-in quote.', false);
+  } finally {
+    isFetching = false;
+    newQuoteButton.disabled = false;
+    drawQuoteImage();
+  }
+}
+
+/* Flip between online (live) quotes and the instant bundled ones. */
+function handleLiveToggle(event) {
+  liveMode = event.target.checked;
 }
 
 /* Spacebar shows a new quote — but not while the user is typing in a field or
@@ -346,10 +406,16 @@ async function handleImageChange(event) {
 
 /* Wire up the controls and draw the first quote so the screen is never blank. */
 function init() {
-  document.getElementById('new-quote').addEventListener('click', showNewQuote);
+  newQuoteButton = document.getElementById('new-quote');
+  newQuoteButton.addEventListener('click', showNewQuote);
   document.getElementById('download').addEventListener('click', downloadImage);
   document.getElementById('image-input').addEventListener('change', handleImageChange);
   document.addEventListener('keydown', handleKeydown);
+
+  // The "Live quotes" toggle: reflect the default, then keep liveMode in sync.
+  const liveToggle = document.getElementById('live-toggle');
+  liveToggle.checked = liveMode;
+  liveToggle.addEventListener('change', handleLiveToggle);
 
   // Wire each gradient swatch to switch the background when clicked.
   swatchButtons = Array.from(document.querySelectorAll('.swatch'));

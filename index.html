@@ -64,6 +64,16 @@
       <button id="download" class="button button--primary" type="button">Download PNG</button>
     </div>
 
+    <!-- Toggle between online "live" quotes and the instant bundled ones. The
+         checkbox sits inside its <label> so the whole label is clickable and
+         the control stays keyboard- and screen-reader-friendly. -->
+    <div class="options">
+      <label class="toggle">
+        <input type="checkbox" id="live-toggle" class="toggle__input" />
+        <span class="toggle__text">Live quotes (fetch from the internet)</span>
+      </label>
+    </div>
+
     <!-- Teaches the keyboard shortcut without getting in the way. -->
     <p class="hint">Tip: press <kbd>Space</kbd> for a new quote.</p>
 

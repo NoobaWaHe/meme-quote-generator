@@ -34,8 +34,13 @@ result as a high-quality PNG. Runs entirely in the browser — no server, no log
 - Before adding any external API or library, ask me first. Version 1 must work fully offline.
 - After a change, tell me how to test it in the browser.
 
-## Out of scope for v1 (don't add unless I ask)
-- Live quotes from an API
+## Added after v1
+- Live quotes from an API. Source: DummyJSON (https://dummyjson.com/quotes/random),
+  which is keyless and CORS-enabled (works from file:// and GitHub Pages).
+  Controlled by the "Live quotes" checkbox (on by default). Always falls back to
+  the bundled QUOTES on any network/timeout/error, so the app still works offline.
+
+## Out of scope (don't add unless I ask)
 - Meme / Impact-font mode
 - Font / color pickers
 - Draggable text

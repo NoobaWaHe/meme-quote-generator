@@ -160,6 +160,12 @@ body {
   transform: translateY(1px);
 }
 
+/* Dimmed + "busy" cursor while a live quote is being fetched. */
+.button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
 /* Clear, high-contrast focus ring for keyboard users. The file input is hidden,
    so when it gains focus we ring its visible <label> (the .button inside .field)
    via :focus-within on the wrapper — otherwise that control would show no focus. */
@@ -251,6 +257,38 @@ body {
 .status--error {
   color: #ff8585;
   font-weight: 600;
+}
+
+/* ---------- Live-quotes toggle ---------- */
+
+.options {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+/* The whole label is the tap target (min 44px tall), so it's easy to hit. */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 44px;
+  padding: 0 0.4rem;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.toggle__input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary); /* colors the checkbox to match the UI */
+  cursor: pointer;
+}
+
+.toggle__input:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
 }
 
 /* ---------- Keyboard shortcut hint ---------- */
