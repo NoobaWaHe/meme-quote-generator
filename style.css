@@ -171,10 +171,18 @@ body {
 /* Dim the canvas while a template image is loading (paired with the status line). */
 #maker-canvas {
   transition: opacity 0.2s ease;
+  /* Let pointer drags move captions instead of scrolling/zooming the page on touch. */
+  touch-action: none;
 }
 
 #maker-canvas.is-loading {
   opacity: 0.45;
+}
+
+/* The canvas is focusable (arrow keys nudge the selected caption) — show a ring. */
+#maker-canvas:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 3px;
 }
 
 /* ---------- Controls ---------- */

@@ -102,7 +102,10 @@ let makerLogicalH = 0;
 let makerButton = null;           // cached "New template" button
 let captions = [];                // the text boxes drawn on the current template
 let captionSeq = 0;               // ever-increasing id source for captions
-let selectedCaptionId = null;     // which caption the next step's controls will edit
+let selectedCaptionId = null;     // which caption the style controls + dragging act on
+let draggingCaption = null;       // the caption currently being dragged, or null
+let dragOffsetX = 0;              // grab point offset from the caption center (logical px)
+let dragOffsetY = 0;
 
 /* Grab the canvas and its 2D context once. */
 const canvas = document.getElementById('quote-canvas');
@@ -450,7 +453,10 @@ function handleKeydown(event) {
   const tag = active ? active.tagName : '';
   const usesSpaceItself =
     tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON';
-  if (usesSpaceItself || (active && active.isContentEditable)) {
+  // Also leave the maker canvas alone — it's focusable for arrow-key nudging, and
+  // Space there shouldn't roll a new template while you're positioning captions.
+  if (usesSpaceItself || (active && active.isContentEditable) ||
+      (active && active.id === 'maker-canvas')) {
     return;
   }
   event.preventDefault(); // stop the page from scrolling down
@@ -908,9 +914,28 @@ function drawCaption(context, caption) {
   caption.box = { x: centerX - widest / 2, y: topY, w: widest, h: blockHeight };
 }
 
+/* Draw a dashed box around the selected caption so it's clear what you're about to
+   move. This is on-screen chrome only — the export step redraws without it, so it
+   never ends up in the downloaded PNG. */
+function drawSelectionChrome() {
+  const caption = getSelectedCaption();
+  if (!caption || !caption.box) {
+    return;
+  }
+  const pad = Math.max(6, makerLogicalH * 0.012);
+  const b = caption.box;
+  makerCtx.save();
+  makerCtx.strokeStyle = 'rgba(47, 210, 155, 0.95)';
+  makerCtx.lineWidth = Math.max(2, makerLogicalW / 400);
+  makerCtx.setLineDash([Math.max(6, makerLogicalW / 120), Math.max(4, makerLogicalW / 180)]);
+  makerCtx.strokeRect(b.x - pad, b.y - pad, b.w + pad * 2, b.h + pad * 2);
+  makerCtx.restore();
+}
+
 /* Repaint the whole maker scene: clear, the plain template, then every caption on
-   top. Clearing first means transparent templates and moved captions never ghost. */
-function drawMakerScene() {
+   top. Clearing first means transparent templates and moved captions never ghost.
+   Pass withChrome=false to render the clean meme for export (no selection box). */
+function drawMakerScene(withChrome) {
   if (!currentTemplateImage) {
     return;
   }
@@ -918,6 +943,9 @@ function drawMakerScene() {
   makerCtx.drawImage(currentTemplateImage, 0, 0, makerLogicalW, makerLogicalH);
   for (const caption of captions) {
     drawCaption(makerCtx, caption);
+  }
+  if (withChrome !== false) {
+    drawSelectionChrome();
   }
 }
 
@@ -1011,6 +1039,116 @@ function updateSelectedStyle(prop, value) {
   }
   caption[prop] = value;
   captionStyle[prop] = value;
+  drawMakerScene();
+}
+
+/* Keep a number within a range. */
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+/* Convert a pointer event's screen position into the canvas's logical coordinates.
+   The canvas is shown shrunk to fit the layout, so we scale by its displayed size
+   versus its logical size. */
+function pointerToLogical(event) {
+  const rect = makerCanvas.getBoundingClientRect();
+  return {
+    x: (event.clientX - rect.left) * (makerLogicalW / rect.width),
+    y: (event.clientY - rect.top) * (makerLogicalH / rect.height),
+  };
+}
+
+/* Find the topmost caption under a logical point (last drawn = on top), with a
+   little padding so captions are easy to grab — especially with a finger. Empty
+   captions (no drawn bounds) aren't hit. */
+function captionAtPoint(lx, ly) {
+  const pad = makerLogicalH * 0.02;
+  for (let i = captions.length - 1; i >= 0; i -= 1) {
+    const b = captions[i].box;
+    if (b && lx >= b.x - pad && lx <= b.x + b.w + pad && ly >= b.y - pad && ly <= b.y + b.h + pad) {
+      return captions[i];
+    }
+  }
+  return null;
+}
+
+/* Begin dragging a caption. We listen on the window (not the canvas) for the rest
+   of the drag, so the caption keeps following even if the pointer leaves the
+   canvas. dragOffset keeps the grab point under the cursor instead of snapping the
+   caption's center to it. */
+function startCaptionDrag(caption, point) {
+  draggingCaption = caption;
+  dragOffsetX = caption.nx * makerLogicalW - point.x;
+  dragOffsetY = caption.ny * makerLogicalH - point.y;
+  makerCanvas.style.cursor = 'grabbing';
+  window.addEventListener('pointermove', handleCaptionDragMove);
+  window.addEventListener('pointerup', endCaptionDrag);
+  window.addEventListener('pointercancel', endCaptionDrag);
+}
+
+function handleCaptionDragMove(event) {
+  if (!draggingCaption) {
+    return;
+  }
+  const point = pointerToLogical(event);
+  draggingCaption.nx = clamp((point.x + dragOffsetX) / makerLogicalW, 0, 1);
+  draggingCaption.ny = clamp((point.y + dragOffsetY) / makerLogicalH, 0, 1);
+  drawMakerScene();
+}
+
+function endCaptionDrag() {
+  if (!draggingCaption) {
+    return;
+  }
+  draggingCaption = null;
+  makerCanvas.style.cursor = 'grab';
+  window.removeEventListener('pointermove', handleCaptionDragMove);
+  window.removeEventListener('pointerup', endCaptionDrag);
+  window.removeEventListener('pointercancel', endCaptionDrag);
+}
+
+/* Press on a caption to select and start dragging it. Focusing the canvas also
+   enables the arrow-key nudge below. */
+function handleMakerPointerDown(event) {
+  if (!currentTemplateImage) {
+    return;
+  }
+  const point = pointerToLogical(event);
+  const caption = captionAtPoint(point.x, point.y);
+  if (!caption) {
+    return;
+  }
+  selectCaption(caption.id);
+  makerCanvas.focus();
+  startCaptionDrag(caption, point);
+}
+
+/* While not dragging, show a grab cursor when hovering a caption so it reads as
+   draggable. */
+function handleMakerHover(event) {
+  if (draggingCaption) {
+    return;
+  }
+  const point = pointerToLogical(event);
+  makerCanvas.style.cursor = captionAtPoint(point.x, point.y) ? 'grab' : 'default';
+}
+
+/* Keyboard alternative to dragging: with the canvas focused, the arrow keys nudge
+   the selected caption (hold Shift for a bigger step). */
+function handleMakerCanvasKeydown(event) {
+  const caption = getSelectedCaption();
+  if (!caption) {
+    return;
+  }
+  const moves = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  const delta = moves[event.key];
+  if (!delta) {
+    return;
+  }
+  event.preventDefault(); // don't scroll the page
+  const step = event.shiftKey ? 0.05 : 0.01;
+  caption.nx = clamp(caption.nx + delta[0] * step, 0, 1);
+  caption.ny = clamp(caption.ny + delta[1] * step, 0, 1);
   drawMakerScene();
 }
 
@@ -1276,6 +1414,12 @@ function init() {
     .addEventListener('input', (e) => updateSelectedStyle('strokeColor', e.target.value));
   document.getElementById('style-upper')
     .addEventListener('change', (e) => updateSelectedStyle('uppercase', e.target.checked));
+
+  // Drag captions on the canvas (pointer events cover mouse + touch); arrow keys
+  // nudge the selected caption when the canvas is focused.
+  makerCanvas.addEventListener('pointerdown', handleMakerPointerDown);
+  makerCanvas.addEventListener('pointermove', handleMakerHover);
+  makerCanvas.addEventListener('keydown', handleMakerCanvasKeydown);
 
   // Start on a random gradient so the default state has some variety.
   currentGradientIndex = Math.floor(Math.random() * GRADIENTS.length);
