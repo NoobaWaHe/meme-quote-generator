@@ -55,7 +55,7 @@ result as a high-quality PNG. Runs entirely in the browser — no server, no log
   gallery to pick a specific template. Built in steps: (1) load + categorize + draw
   the plain template [done]; (2) auto-seed caption boxes by box_count, edit text,
   classic Impact style [done]; (3) font / color / size pickers [done]; (4) draggable text
-  (pointer + touch, arrow-key nudge for keyboard) [done]; (5) export a 2x PNG;
+  (pointer + touch, arrow-key nudge for keyboard) [done]; (5) export a 2x PNG [done];
   (6) frontend-design polish pass.
 
 ## Out of scope (don't add unless I ask)

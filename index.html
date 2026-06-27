@@ -182,15 +182,16 @@
 
       <!-- Choose a template by how many captions it takes (2, 3, 4 …), or get a
            surprise one. The count options are filled in by JS from the real data. -->
-      <div class="maker-pick" role="group" aria-label="Choose a template">
+      <div class="maker-pick" role="group" aria-label="Template and download">
         <label class="meme-from">
           <span class="meme-from__label">Captions</span>
           <select id="maker-category" class="select">
             <option value="surprise">Surprise me</option>
           </select>
         </label>
-        <button id="maker-new" class="button button--maker" type="button"
+        <button id="maker-new" class="button button--ghost" type="button"
           aria-keyshortcuts="Space" title="New template (Space)">New template</button>
+        <button id="maker-download" class="button button--maker" type="button">Download PNG</button>
       </div>
 
       <!-- A gallery of every template in the chosen category, so you can also pick

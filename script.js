@@ -1090,21 +1090,32 @@ function handleCaptionDragMove(event) {
   if (!draggingCaption) {
     return;
   }
+  // If the mouse button was released outside the window we never got pointerup;
+  // a move with no button held means the drag is over. (Touch keeps buttons=1.)
+  if (event.buttons === 0) {
+    endCaptionDrag(event);
+    return;
+  }
   const point = pointerToLogical(event);
   draggingCaption.nx = clamp((point.x + dragOffsetX) / makerLogicalW, 0, 1);
   draggingCaption.ny = clamp((point.y + dragOffsetY) / makerLogicalH, 0, 1);
   drawMakerScene();
 }
 
-function endCaptionDrag() {
+function endCaptionDrag(event) {
   if (!draggingCaption) {
     return;
   }
   draggingCaption = null;
-  makerCanvas.style.cursor = 'grab';
   window.removeEventListener('pointermove', handleCaptionDragMove);
   window.removeEventListener('pointerup', endCaptionDrag);
   window.removeEventListener('pointercancel', endCaptionDrag);
+  // Restore the hover cursor: grab over a caption, default over empty canvas.
+  if (event && typeof event.clientX === 'number') {
+    handleMakerHover(event);
+  } else {
+    makerCanvas.style.cursor = 'default';
+  }
 }
 
 /* Press on a caption to select and start dragging it. Focusing the canvas also
@@ -1113,13 +1124,15 @@ function handleMakerPointerDown(event) {
   if (!currentTemplateImage) {
     return;
   }
+  // Focus the canvas on any press so the arrow-key nudge is reachable; preventScroll
+  // stops mobile from jumping when you grab a caption near the bottom of the page.
+  makerCanvas.focus({ preventScroll: true });
   const point = pointerToLogical(event);
   const caption = captionAtPoint(point.x, point.y);
   if (!caption) {
     return;
   }
   selectCaption(caption.id);
-  makerCanvas.focus();
   startCaptionDrag(caption, point);
 }
 
@@ -1150,6 +1163,36 @@ function handleMakerCanvasKeydown(event) {
   caption.nx = clamp(caption.nx + delta[0] * step, 0, 1);
   caption.ny = clamp(caption.ny + delta[1] * step, 0, 1);
   drawMakerScene();
+}
+
+/* Build a friendly file name from the template's name, e.g. "Drake Hotline
+   Bling" -> "drake-hotline-bling-meme.png". */
+function makerFileName() {
+  const name = currentTemplate && currentTemplate.name ? currentTemplate.name : 'meme';
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return (slug || 'meme') + '-meme.png';
+}
+
+/* Save the captioned meme as a PNG. We render once WITHOUT the selection box (the
+   clean meme), capture the pixels, then restore the on-screen view. The canvas was
+   loaded CORS-clean, so toDataURL works; its 2x backing store keeps the file sharp. */
+function downloadMeme() {
+  if (!currentTemplateImage) {
+    showMakerMessage('Pick a template first, then add your captions.', false);
+    return;
+  }
+  try {
+    drawMakerScene(false); // clean meme, no selection chrome
+    const link = document.createElement('a');
+    link.download = makerFileName();
+    link.href = makerCanvas.toDataURL('image/png');
+    link.click();
+    showMakerMessage('Saved your meme as a PNG.', false);
+  } catch (error) {
+    showMakerMessage('Sorry, the meme could not be saved. Please try again.', true);
+  } finally {
+    drawMakerScene(); // restore the on-screen selection box
+  }
 }
 
 /* Add an extra caption (beyond the template's default boxes), centered, and focus
@@ -1402,6 +1445,7 @@ function init() {
   makerButton.addEventListener('click', showNewTemplate);
   document.getElementById('maker-category').addEventListener('change', handleMakerCategoryChange);
   document.getElementById('caption-add').addEventListener('click', addCaption);
+  document.getElementById('maker-download').addEventListener('click', downloadMeme);
 
   // Style controls act on the selected caption (and become the default for new ones).
   document.getElementById('style-font')
