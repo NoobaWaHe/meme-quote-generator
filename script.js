@@ -144,6 +144,10 @@ const MEME_BATCH_SIZE = 50; // memes requested per subreddit (API returns up to 
    and exported as a PNG without "tainting" it. Each template tells us its
    box_count: how many caption slots it's designed for. */
 const IMGFLIP_API_URL = 'https://api.imgflip.com/get_memes';
+/* A second free, keyless, CORS-clean source of BLANK templates. Merging it with
+   Imgflip turns the ~100-template fixed set into a ~300 pool. Each entry has a
+   "blank" (no-text image) and "lines" (text-box count). */
+const MEMEGEN_API_URL = 'https://api.memegen.link/templates/';
 const MAKER_MAX_SIZE = 1080; // cap a template's longest side (sharp export, sane size)
 
 /* Pick a random quote. If we happen to land on the one already showing, step to
@@ -715,39 +719,64 @@ function setMakerBusy(busy) {
   makerCanvas.classList.toggle('is-loading', busy);
 }
 
-/* Fetch the catalogue of blank templates from Imgflip once and cache it. Each
-   becomes { id, name, url, width, height, boxCount }. Throws on any failure so
-   the caller can show a friendly message. */
+/* Fetch one template source with a timeout, then map it to our shape via mapFn. */
+async function fetchTemplateSource(url, mapFn) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      throw new Error('HTTP ' + response.status);
+    }
+    return mapFn(await response.json());
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/* Imgflip get_memes -> our { id, name, url, boxCount } shape. */
+function mapImgflipTemplates(data) {
+  const list = data && data.data && Array.isArray(data.data.memes) ? data.data.memes : [];
+  return list
+    .filter((t) => t && t.url && t.box_count)
+    .map((t) => ({ id: 'imgflip-' + t.id, name: t.name || 'Template', url: t.url, boxCount: t.box_count }));
+}
+
+/* memegen.link /templates/ -> our shape. "blank" is the no-text image; "lines" is
+   how many text boxes the template has. */
+function mapMemegenTemplates(data) {
+  const list = Array.isArray(data) ? data : [];
+  return list
+    .filter((t) => t && t.blank && t.lines)
+    .map((t) => ({ id: 'memegen-' + t.id, name: t.name || 'Template', url: t.blank, boxCount: t.lines }));
+}
+
+/* Build the catalogue of BLANK templates once and cache it. We merge two free,
+   keyless, CORS-clean sources — memegen.link (~200) and Imgflip (~100) — into one
+   large pool (~300), deduped by name and shuffled so "Surprise me" and the gallery
+   feel like a big random set rather than a fixed list. If one source is down we
+   still use the other; only an empty result is an error. */
 async function fetchTemplates() {
   if (makerTemplates.length) {
     return makerTemplates; // already loaded — reuse the cache
   }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10000);
-  try {
-    const response = await fetch(IMGFLIP_API_URL, { signal: controller.signal });
-    if (!response.ok) {
-      throw new Error('HTTP ' + response.status);
+  const [memegen, imgflip] = await Promise.all([
+    fetchTemplateSource(MEMEGEN_API_URL, mapMemegenTemplates).catch(() => []),
+    fetchTemplateSource(IMGFLIP_API_URL, mapImgflipTemplates).catch(() => []),
+  ]);
+  // Merge, dropping a template whose name we've already seen (memegen wins ties).
+  const byName = new Map();
+  for (const template of memegen.concat(imgflip)) {
+    const key = template.name.trim().toLowerCase();
+    if (!byName.has(key)) {
+      byName.set(key, template);
     }
-    const data = await response.json();
-    const list = data && data.data && Array.isArray(data.data.memes) ? data.data.memes : [];
-    makerTemplates = list
-      .filter((t) => t && t.url && t.box_count)
-      .map((t) => ({
-        id: String(t.id),
-        name: t.name || 'Template',
-        url: t.url,
-        width: t.width || 0,
-        height: t.height || 0,
-        boxCount: t.box_count,
-      }));
-    if (!makerTemplates.length) {
-      throw new Error('No templates returned');
-    }
-    return makerTemplates;
-  } finally {
-    clearTimeout(timer);
   }
+  makerTemplates = shuffle(Array.from(byName.values()));
+  if (!makerTemplates.length) {
+    throw new Error('No templates returned');
+  }
+  return makerTemplates;
 }
 
 /* Fill the category dropdown from the templates we actually have: "Surprise me"

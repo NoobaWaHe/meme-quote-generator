@@ -534,11 +534,20 @@ body {
   min-height: 44px;
   padding: 0 0.7rem;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
+  /* Solid (not translucent) so the closed control and the open option list both
+     keep strong contrast — a faint rgba fill made the dropdown options hard to
+     read against the page. */
+  background: var(--surface);
   border: 1px solid rgba(255, 255, 255, 0.16);
   color: var(--text);
   font-size: 1rem;
   cursor: pointer;
+}
+
+/* Style the native option list explicitly so text stays light on a dark menu. */
+.select option {
+  background: var(--surface);
+  color: var(--text);
 }
 
 .select:focus-visible {

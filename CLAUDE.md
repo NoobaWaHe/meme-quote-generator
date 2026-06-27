@@ -46,13 +46,16 @@ result as a high-quality PNG. Runs entirely in the browser — no server, no log
   serves them with no repeats; a category pulls from its own subreddit. Keeps a
   "Recent" history of the last 6 (click to revisit) and filters NSFW / non-image.
 - Meme Maker mode: a third mode where the user captions a BLANK template with
-  their own words. Templates come from Imgflip's get_memes
-  (https://api.imgflip.com/get_memes) — free, keyless, and CORS-clean for both the
-  JSON and the image bytes, so the template can be drawn on a <canvas> and exported
-  as a PNG without tainting it (verified). Templates load with
-  crossOrigin="anonymous". Each template's box_count drives a "Captions" category
-  (Surprise me + one option per caption count present, e.g. 2 / 3 / 4 / 5), plus a
-  gallery to pick a specific template. Built in steps: (1) load + categorize + draw
+  their own words. Templates come from TWO free, keyless, CORS-clean sources merged
+  into one large pool (~290 unique, deduped by name, shuffled): memegen.link
+  (https://api.memegen.link/templates/ — "blank" no-text image + "lines" box count)
+  and Imgflip's get_memes (https://api.imgflip.com/get_memes — "url" + "box_count").
+  Both are CORS-clean for the JSON AND the image bytes, so a template can be drawn
+  on a <canvas> and exported as a PNG without tainting it (verified for both).
+  Templates load with crossOrigin="anonymous"; if one source is down the other
+  still works. Each template's box count drives a "Layout" category (Surprise me +
+  one option per box count present, e.g. 2-box / 3-box / 4-box …), plus a gallery to
+  pick a specific template. Built in steps: (1) load + categorize + draw
   the plain template [done]; (2) auto-seed caption boxes by box_count, edit text,
   classic Impact style [done]; (3) font / color / size pickers [done]; (4) draggable text
   (pointer + touch, arrow-key nudge for keyboard) [done]; (5) export a 2x PNG [done];
