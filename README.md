@@ -1,3 +1,5 @@
+Please Note: This generator is 100% made by Claude Code
+
 # Quote Image Maker
 
 > Make quote images, roll through random memes, or caption your own — right in your browser.
