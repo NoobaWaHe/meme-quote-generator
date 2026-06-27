@@ -16,6 +16,9 @@
   --maker-press: #22b886; /* maker accent, pressed/hover */
   --ring: #9db4ff;        /* focus outline */
   --radius: 12px;
+  /* Monospace, used only for the Maker's small "tool" labels and the caption
+     numbers — gives that mode a workshop voice distinct from the editorial serif. */
+  --mono: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 }
 
 /* border-box makes padding count *inside* an element's width, which keeps the
@@ -600,12 +603,14 @@ body {
 
 /* ---------- Meme Maker mode ---------- */
 
-/* A small uppercase section label, reused by the maker's groups. */
+/* A small monospace "tool" label for the maker's groups — its workshop voice. */
 .eyebrow {
-  font-size: 0.8rem;
+  align-self: flex-start;
+  font-family: var(--mono);
+  font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.14em;
   color: var(--muted);
 }
 
@@ -694,10 +699,34 @@ body {
   gap: 0.5rem;
 }
 
-/* Each row: a wide text input plus a small remove button. */
+/* Each row: a number badge, a wide text input, and a small remove button. */
 .caption-row {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
+}
+
+/* The caption's stacking order (1 = top). It also doubles as the in-list selection
+   marker — it fills with the maker accent for the caption you're editing, matching
+   the dashed box on the canvas. */
+.caption-index {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.caption-row.is-selected .caption-index {
+  background: var(--maker);
+  color: #04130d;
 }
 
 .caption-input {
@@ -747,11 +776,24 @@ body {
   outline-offset: 2px;
 }
 
-/* Highlight the caption row currently being styled, so it's clear what the Style
-   controls below will change. */
-.caption-row.is-selected .caption-input {
-  border-color: var(--maker);
-  box-shadow: 0 0 0 2px rgba(47, 210, 155, 0.3);
+/* The "workbench": one surface that groups the per-caption editing (text + style)
+   below the canvas. A single mint top-rule is the maker mode's signature accent. */
+.maker-inspector {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 2px solid var(--maker);
+  border-radius: 14px;
+}
+
+/* A hairline between the captions and the style controls inside the inspector. */
+.maker-inspector .caption-style {
+  padding-top: 0.9rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* ---------- Caption style panel ---------- */

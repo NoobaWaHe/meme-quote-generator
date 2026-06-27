@@ -135,56 +135,60 @@
         ></canvas>
       </div>
 
-      <!-- Your captions: one text box per template slot to start (add or remove as
-           you like). Typing updates the canvas live. The boxes are injected by JS
-           because how many there are depends on the chosen template. -->
-      <div class="captions" role="group" aria-label="Your captions">
-        <span class="eyebrow">Your captions</span>
-        <div id="caption-list" class="caption-list"></div>
-        <button id="caption-add" class="button button--ghost" type="button">+ Add caption</button>
-      </div>
+      <!-- The inspector groups the per-caption editing (text + style) into one
+           "workbench" panel below the canvas, so Maker reads as a tool. -->
+      <div class="maker-inspector">
+        <!-- Your captions: one text box per template slot to start (add or remove
+             as you like). Typing updates the canvas live. Boxes are injected by JS
+             because how many there are depends on the chosen template. -->
+        <div class="captions" role="group" aria-label="Your captions">
+          <span class="eyebrow">Your captions</span>
+          <div id="caption-list" class="caption-list"></div>
+          <button id="caption-add" class="button button--ghost" type="button">+ Add caption</button>
+        </div>
 
-      <!-- Style the caption you're editing: font, size, text + outline colour, and
-           uppercase. Changes apply to the selected caption (the one you last
-           clicked) and are inherited by any new captions you add. -->
-      <div class="caption-style" role="group" aria-label="Caption style">
-        <span class="eyebrow">Style <span id="style-target" class="style-target"></span></span>
-        <div class="style-grid">
-          <label class="style-field">
-            <span class="style-field__label">Font</span>
-            <select id="style-font" class="select">
-              <option value='Impact, "Haettenschweiler", "Arial Narrow Bold", sans-serif'>Impact (classic)</option>
-              <option value='"Arial Black", Arial, sans-serif'>Arial Black</option>
-              <option value='Arial, Helvetica, sans-serif'>Arial</option>
-              <option value='"Comic Sans MS", "Comic Sans", cursive'>Comic Sans</option>
-              <option value='Georgia, "Times New Roman", serif'>Georgia</option>
-              <option value='"Courier New", monospace'>Courier</option>
-            </select>
-          </label>
-          <label class="style-field">
-            <span class="style-field__label">Size</span>
-            <input id="style-size" class="style-range" type="range" min="0.05" max="0.25" step="0.005" />
-          </label>
-          <label class="style-field style-field--color">
-            <span class="style-field__label">Text</span>
-            <input id="style-fill" class="style-color" type="color" />
-          </label>
-          <label class="style-field style-field--color">
-            <span class="style-field__label">Outline</span>
-            <input id="style-stroke" class="style-color" type="color" />
-          </label>
-          <label class="style-toggle">
-            <input id="style-upper" type="checkbox" class="toggle__input" />
-            <span>UPPERCASE</span>
-          </label>
+        <!-- Style the caption you're editing: font, size, text + outline colour,
+             and uppercase. Changes apply to the selected caption and are inherited
+             by new captions you add. -->
+        <div class="caption-style" role="group" aria-label="Caption style">
+          <span class="eyebrow">Style <span id="style-target" class="style-target"></span></span>
+          <div class="style-grid">
+            <label class="style-field">
+              <span class="style-field__label">Font</span>
+              <select id="style-font" class="select">
+                <option value='Impact, "Haettenschweiler", "Arial Narrow Bold", sans-serif'>Impact (classic)</option>
+                <option value='"Arial Black", Arial, sans-serif'>Arial Black</option>
+                <option value='Arial, Helvetica, sans-serif'>Arial</option>
+                <option value='"Comic Sans MS", "Comic Sans", cursive'>Comic Sans</option>
+                <option value='Georgia, "Times New Roman", serif'>Georgia</option>
+                <option value='"Courier New", monospace'>Courier</option>
+              </select>
+            </label>
+            <label class="style-field">
+              <span class="style-field__label">Size</span>
+              <input id="style-size" class="style-range" type="range" min="0.05" max="0.25" step="0.005" />
+            </label>
+            <label class="style-field style-field--color">
+              <span class="style-field__label">Text</span>
+              <input id="style-fill" class="style-color" type="color" />
+            </label>
+            <label class="style-field style-field--color">
+              <span class="style-field__label">Outline</span>
+              <input id="style-stroke" class="style-color" type="color" />
+            </label>
+            <label class="style-toggle">
+              <input id="style-upper" type="checkbox" class="toggle__input" />
+              <span>UPPERCASE</span>
+            </label>
+          </div>
         </div>
       </div>
 
-      <!-- Choose a template by how many captions it takes (2, 3, 4 …), or get a
-           surprise one. The count options are filled in by JS from the real data. -->
+      <!-- Pick a base template — by how many text boxes it has (2-box, 3-box …) or a
+           surprise — and download. The box-count options are filled in by JS. -->
       <div class="maker-pick" role="group" aria-label="Template and download">
         <label class="meme-from">
-          <span class="meme-from__label">Captions</span>
+          <span class="meme-from__label">Layout</span>
           <select id="maker-category" class="select">
             <option value="surprise">Surprise me</option>
           </select>

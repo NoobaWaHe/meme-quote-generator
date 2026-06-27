@@ -764,7 +764,7 @@ function populateMakerCategories() {
   for (const count of counts) {
     const option = document.createElement('option');
     option.value = String(count);
-    option.textContent = count + (count === 1 ? ' caption' : ' captions');
+    option.textContent = count + '-box'; // e.g. "2-box" — templates with 2 text areas
     select.appendChild(option);
   }
   select.dataset.filled = 'true';
@@ -862,13 +862,25 @@ function makeCaption(label, nx, ny) {
 /* Seed the editor with the right number of boxes for a template: a 1-box template
    gets one near the top, a 2-box gets the classic top + bottom, more are spread
    evenly down the image. */
-function seedCaptions(count) {
+function seedCaptions(count, previous) {
   const total = Math.max(1, count || 1);
+  const old = previous || [];
   captions = [];
   for (let i = 0; i < total; i += 1) {
     // Spread vertical centers from 14% (top) to 86% (bottom) of the canvas.
     const ny = total === 1 ? 0.16 : 0.14 + 0.72 * (i / (total - 1));
-    captions.push(makeCaption(captionLabel(i, total), 0.5, ny));
+    const caption = makeCaption(captionLabel(i, total), 0.5, ny);
+    // Switching templates shouldn't wipe the user's work: carry over the text and
+    // styling for this slot. Position resets to suit the new image.
+    if (old[i]) {
+      caption.text = old[i].text;
+      caption.fontFamily = old[i].fontFamily;
+      caption.fillColor = old[i].fillColor;
+      caption.strokeColor = old[i].strokeColor;
+      caption.fontScale = old[i].fontScale;
+      caption.uppercase = old[i].uppercase;
+    }
+    captions.push(caption);
   }
   selectedCaptionId = captions.length ? captions[0].id : null;
 }
@@ -954,13 +966,20 @@ function drawMakerScene(withChrome) {
 function renderCaptionList() {
   const list = document.getElementById('caption-list');
   list.innerHTML = '';
-  captions.forEach((caption) => {
+  captions.forEach((caption, index) => {
     const row = document.createElement('div');
     row.className = 'caption-row';
     row.dataset.id = caption.id;
     if (caption.id === selectedCaptionId) {
       row.classList.add('is-selected');
     }
+
+    // A small number badge shows the caption's stacking order (1 = top) and marks
+    // the one currently selected for styling/dragging.
+    const badge = document.createElement('span');
+    badge.className = 'caption-index';
+    badge.textContent = String(index + 1);
+    badge.setAttribute('aria-hidden', 'true');
 
     const input = document.createElement('input');
     input.type = 'text';
@@ -982,6 +1001,7 @@ function renderCaptionList() {
     remove.setAttribute('aria-label', 'Remove caption: ' + caption.label);
     remove.addEventListener('click', () => removeCaption(caption.id));
 
+    row.appendChild(badge);
     row.appendChild(input);
     row.appendChild(remove);
     list.appendChild(row);
@@ -1313,8 +1333,9 @@ async function applyTemplate(template) {
   currentTemplate = template;
   currentTemplateImage = image;
   setupMakerCanvasFor(image);
-  // Start fresh with the right number of caption boxes for this template.
-  seedCaptions(template.boxCount);
+  // Seed the right number of caption boxes for this template, carrying over any
+  // text/styling the user already typed so switching templates doesn't wipe it.
+  seedCaptions(template.boxCount, captions);
   renderCaptionList();
   drawMakerScene();
   makerCanvas.setAttribute(

@@ -56,7 +56,9 @@ result as a high-quality PNG. Runs entirely in the browser — no server, no log
   the plain template [done]; (2) auto-seed caption boxes by box_count, edit text,
   classic Impact style [done]; (3) font / color / size pickers [done]; (4) draggable text
   (pointer + touch, arrow-key nudge for keyboard) [done]; (5) export a 2x PNG [done];
-  (6) frontend-design polish pass.
+  (6) frontend-design polish pass [done] — "workbench" inspector card with a mint
+  top-rule, monospace tool labels, numbered caption badges; switching templates now
+  keeps typed text + per-caption styling.
 
 ## Out of scope (don't add unless I ask)
 - Saving favorites
