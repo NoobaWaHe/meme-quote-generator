@@ -84,4 +84,4 @@ Your own uploaded images never leave your device.
 
 ## License
 
-No license yet — add one (e.g. MIT) if you'd like others to reuse the code.
+Released under the [MIT License](LICENSE) © 2026 NoobaWaHe — free to use, modify, and share, with attribution.
