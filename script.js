@@ -1258,12 +1258,24 @@ function addCaption() {
   }
 }
 
+/* Re-apply the position-based labels (Top text / Bottom text / Text N) across the
+   current captions. Run after a removal so the placeholders and screen-reader
+   labels match the new count instead of going stale — e.g. the remaining bottom
+   box stays "Bottom text" rather than keeping its old "Text 3". */
+function relabelCaptions() {
+  const total = captions.length;
+  captions.forEach((caption, index) => {
+    caption.label = captionLabel(index, total);
+  });
+}
+
 /* Remove a caption by id and repaint. */
 function removeCaption(id) {
   captions = captions.filter((caption) => caption.id !== id);
   if (selectedCaptionId === id) {
     selectedCaptionId = captions.length ? captions[0].id : null;
   }
+  relabelCaptions(); // keep the remaining labels sensible for the new count
   renderCaptionList();
   drawMakerScene();
 }
